@@ -34,8 +34,7 @@ if not screenGui then
 
     btn.MouseButton1Click:Connect(function()
         getgenv().coinFarm = not getgenv().coinFarm
-        local currentBtn = screenGui:FindFirstChild("ToggleBtn")
-        currentBtn.BackgroundColor3 = getgenv().coinFarm and Color3.fromRGB(0, 170, 0) or Color3.fromRGB(170, 0, 0)
+        btn.BackgroundColor3 = getgenv().coinFarm and Color3.fromRGB(0, 170, 0) or Color3.fromRGB(170, 0, 0)
     end)
 end
 
@@ -46,31 +45,23 @@ local function updateGui()
     end
 end
 
--- Function to handle setup when character spawns
+-- Reset logic
 local function setupCharacter(newChar)
     character = newChar
     hrp = character:WaitForChild("HumanoidRootPart")
-    collectedCount = 0 -- RESET COUNTER ON DEATH
+    collectedCount = 0
     updateGui()
-    
-    local hum = character:WaitForChild("Humanoid")
-    hum.Died:Connect(function()
-        collectedCount = 0
-        updateGui()
-    end)
 end
 
-setupCharacter(character)
 player.CharacterAdded:Connect(setupCharacter)
 
---- ### 2. THE NOCLIP ### ---
-RunService.Stepped:Connect(function()
-    if getgenv().coinFarm and character then
-        for _, part in ipairs(character:GetDescendants()) do
-            if part:IsA("BasePart") then part.CanCollide = false end
-        end
+--- ### 2. GUI SCANNER (HELPER) ### ---
+-- This will help us find your game's coin counter. Check F9 console!
+for _, v in pairs(player.PlayerGui:GetDescendants()) do
+    if v:IsA("TextLabel") and (string.find(string.lower(v.Text), "coin") or tonumber(v.Text)) then
+        print("POSSIBLE COIN GUI FOUND: " .. v:GetFullName() .. " | Current Text: " .. v.Text)
     end
-end)
+end
 
 --- ### 3. SEARCH LOGIC ### ---
 local function getNearestCoin()
@@ -88,23 +79,18 @@ local function getNearestCoin()
     return closestCoin
 end
 
---- ### 4. THE VERIFIED ENGINE ### ---
+--- ### 4. THE PROXIMITY-BASED ENGINE ### ---
 task.spawn(function()
     while true do
         if getgenv().coinFarm and hrp then
-            -- Auto-Reset Trigger
             if collectedCount >= RESET_CAP then
                 getgenv().coinFarm = false
-                updateGui()
-                if character:FindFirstChild("Humanoid") then
-                    character.Humanoid.Health = 0 
-                end
+                if character:FindFirstChild("Humanoid") then character.Humanoid.Health = 0 end
                 task.wait(5)
                 getgenv().coinFarm = true 
                 continue
             end
 
-            -- Physics
             if not bodyVelocity or bodyVelocity.Parent ~= hrp then
                 bodyVelocity = Instance.new("BodyVelocity", hrp)
                 bodyVelocity.MaxForce = Vector3.new(9e9, 9e9, 9e9)
@@ -120,44 +106,24 @@ task.spawn(function()
                 task.wait(adaptiveWait)
 
                 -- Fly to Target
-                while getgenv().coinFarm and target and target.Parent and (target.Position - hrp.Position).Magnitude > 2 do
+                while getgenv().coinFarm and target and target.Parent and (target.Position - hrp.Position).Magnitude > 1.5 do
                     bodyVelocity.Velocity = (target.Position - hrp.Position).Unit * BASE_SPEED
                     RunService.Heartbeat:Wait()
                 end
 
-                -- VERIFICATION LOGIC
-                if target and target.Parent then
+                -- MAGNITUDE COLLECTION (Count it immediately upon arrival)
+                if getgenv().coinFarm then
                     bodyVelocity.Velocity = Vector3.zero
                     collectedCoins[target] = tick()
-                    
-                    -- Check if coin disappears while we are close (within 5 studs)
-                    local startDetect = tick()
-                    local wasCollectedByMe = false
-                    
-                    while tick() - startDetect < 1 do
-                        if not target.Parent or not target:IsDescendantOf(workspace) then
-                            -- Coin disappeared! Was I close enough?
-                            if (hrp.Position - target.Position).Magnitude < 5 then
-                                wasCollectedByMe = true
-                            end
-                            break
-                        end
-                        RunService.Heartbeat:Wait()
-                    end
-                    
-                    if wasCollectedByMe then
-                        collectedCount = collectedCount + 1
-                        updateGui()
-                    end
+                    collectedCount = collectedCount + 1
+                    updateGui()
+                    task.wait(0.2) -- Tiny buffer so we don't zoom away before the touch registers
                 end
             else
                 bodyVelocity.Velocity = Vector3.zero
             end
         else
-            if bodyVelocity then 
-                bodyVelocity:Destroy() bodyVelocity = nil 
-                if character:FindFirstChild("Humanoid") then character.Humanoid.PlatformStand = false end
-            end
+            if bodyVelocity then bodyVelocity:Destroy() bodyVelocity = nil end
         end
         RunService.Heartbeat:Wait()
     end
