@@ -8,10 +8,10 @@ local hrp = character:WaitForChild("HumanoidRootPart")
 
 -- CONFIGURATION
 getgenv().coinFarm = getgenv().coinFarm or false 
-local BASE_SPEED = 50
-local MIN_WAIT = 0.4
-local VELOCITY_THRESHOLD = 30
-local COIN_TYPE_TO_FARM = "Coin" -- Change this as needed
+local BASE_SPEED = 55
+local MIN_WAIT = 0.25
+local VELOCITY_THRESHOLD = 35
+local COIN_TYPE_TO_FARM = "Coin"
 
 -- REMOTE EVENT PATH (From the MM2 script)
 local CoinCollectedEvent = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("Gameplay"):WaitForChild("CoinCollected")
