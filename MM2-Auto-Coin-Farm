@@ -13,18 +13,13 @@ local MIN_WAIT = 0.25
 local VELOCITY_THRESHOLD = 35
 local COIN_TYPE_TO_FARM = "Coin"
 
--- REMOTES
-local Remotes = ReplicatedStorage:WaitForChild("Remotes")
-local Gameplay = Remotes:WaitForChild("Gameplay")
-local CoinCollectedEvent = Gameplay:WaitForChild("CoinCollected")
-local RoundStartEvent = Gameplay:WaitForChild("RoundStart")
-local RoundEndEvent = Gameplay:WaitForChild("RoundEndFade") -- Detects when round is over
+-- REMOTE EVENT PATH (From the MM2 script)
+local CoinCollectedEvent = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("Gameplay"):WaitForChild("CoinCollected")
 
 local bodyVelocity = nil
 local collectedCoins = {} 
 local collectedCount = 0
-local currentMax = 50 
-local isRoundActive = true -- Track if we are actually in a game
+local currentMax = 50 -- Default, will update automatically
 
 --- ### 1. PERSISTENT GUI ### ---
 local screenGui = player.PlayerGui:FindFirstChild("PersistentFarmGui")
@@ -37,7 +32,7 @@ if not screenGui then
     btn.Name = "ToggleBtn"
     btn.Size = UDim2.new(0, 200, 0, 50)
     btn.Position = UDim2.new(0.5, -100, 0.1, 0)
-    btn.Text = "Farm: OFF"
+    btn.Text = "Farm: OFF (Waiting...)"
     btn.BackgroundColor3 = Color3.fromRGB(170, 0, 0)
     btn.TextColor3 = Color3.fromRGB(255, 255, 255)
     Instance.new("UICorner", btn)
@@ -45,18 +40,19 @@ if not screenGui then
     btn.MouseButton1Click:Connect(function()
         getgenv().coinFarm = not getgenv().coinFarm
         btn.BackgroundColor3 = getgenv().coinFarm and Color3.fromRGB(0, 170, 0) or Color3.fromRGB(170, 0, 0)
+        updateGui()
     end)
 end
 
-local function updateGui(statusOverride)
+local function updateGui()
     local btn = screenGui:FindFirstChild("ToggleBtn")
     if btn then
-        local status = statusOverride or (getgenv().coinFarm and "ON" or "OFF")
-        btn.Text = "Farm: " .. status .. " (" .. collectedCount .. "/" .. currentMax .. ")"
+        btn.Text = (getgenv().coinFarm and "Farm: ON " or "Farm: OFF ") .. "(" .. collectedCount .. "/" .. currentMax .. ")"
     end
 end
 
---- ### 2. SERVER & ROUND SYNC ### ---
+--- ### 2. SERVER SYNC LOGIC ### ---
+-- This listens to the game server to update your counts
 CoinCollectedEvent.OnClientEvent:Connect(function(cointype, current, max)
     if cointype == COIN_TYPE_TO_FARM then
         collectedCount = tonumber(current)
@@ -65,31 +61,17 @@ CoinCollectedEvent.OnClientEvent:Connect(function(cointype, current, max)
     end
 end)
 
--- Auto-Resume on Round Start
-RoundStartEvent.OnClientEvent:Connect(function()
-    isRoundActive = true
-    collectedCount = 0
-    collectedCoins = {} -- Clear blacklist for new round
-    updateGui()
-end)
-
--- Auto-Pause on Round End
-RoundEndEvent.OnClientEvent:Connect(function()
-    isRoundActive = false
-    updateGui("ROUND END")
-end)
-
 local function setupCharacter(newChar)
     character = newChar
     hrp = character:WaitForChild("HumanoidRootPart")
-    -- We don't force coinFarm to false here anymore
+    collectedCount = 0 -- Reset local count on spawn
     updateGui()
 end
 player.CharacterAdded:Connect(setupCharacter)
 
---- ### 3. SEARCH & PHYSICS ### ---
+--- ### 3. SEARCH & NOCLIP ### ---
 RunService.Stepped:Connect(function()
-    if getgenv().coinFarm and isRoundActive and character then
+    if getgenv().coinFarm and character then
         for _, part in ipairs(character:GetDescendants()) do
             if part:IsA("BasePart") then part.CanCollide = false end
         end
@@ -99,8 +81,8 @@ end)
 local function getNearestCoin()
     local closestCoin = nil
     local shortestDistance = math.huge
-    -- Optimization: Only search if we actually have a coin container
     for _, child in ipairs(workspace:GetDescendants()) do
+        -- Check if it's the right object and if we haven't targeted it recently
         if child:IsA("BasePart") and child.Name == "Coin_Server" and not collectedCoins[child] then
             local distance = (child.Position - hrp.Position).Magnitude
             if distance < shortestDistance then
@@ -115,16 +97,15 @@ end
 --- ### 4. ENGINE ### ---
 task.spawn(function()
     while true do
-        -- Only run if Toggled ON AND Round is Active
-        if getgenv().coinFarm and isRoundActive and hrp then
-            
-            -- RESET IF FULL
+        if getgenv().coinFarm and hrp then
+            -- AUTO-RESET: Check if bag is full based on Server Data
             if collectedCount >= currentMax and currentMax > 0 then
-                updateGui("FULL - RESETTING")
+                collectedCount = 0
+                updateGui()
                 if character:FindFirstChild("Humanoid") then 
                     character.Humanoid.Health = 0 
                 end
-                task.wait(5)
+                task.wait(5) -- Wait for respawn
                 continue
             end
 
@@ -142,24 +123,23 @@ task.spawn(function()
                 bodyVelocity.Velocity = Vector3.zero
                 task.wait(adaptiveWait)
 
-                while getgenv().coinFarm and isRoundActive and target and target.Parent and (target.Position - hrp.Position).Magnitude > 0.5 do
+                -- Fly to Target
+                while getgenv().coinFarm and target and target.Parent and (target.Position - hrp.Position).Magnitude > 0.5 do
                     bodyVelocity.Velocity = (target.Position - hrp.Position).Unit * BASE_SPEED
                     RunService.Heartbeat:Wait()
                 end
 
                 if getgenv().coinFarm then
                     bodyVelocity.Velocity = Vector3.zero
-                    collectedCoins[target] = tick()
-                    task.wait(0.3) 
+                    collectedCoins[target] = tick() -- Blacklist target so we don't loop on it
+                    task.wait(0.3) -- Wait for the RemoteEvent to fire and update our count
                 end
             else
                 bodyVelocity.Velocity = Vector3.zero
             end
         else
-            -- Clean up physics when off or between rounds
             if bodyVelocity then 
-                bodyVelocity:Destroy() 
-                bodyVelocity = nil 
+                bodyVelocity:Destroy() bodyVelocity = nil 
                 if character:FindFirstChild("Humanoid") then character.Humanoid.PlatformStand = false end
             end
         end
