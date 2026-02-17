@@ -7,12 +7,14 @@ local hrp = character:WaitForChild("HumanoidRootPart")
 
 -- CONFIGURATION
 getgenv().coinFarm = getgenv().coinFarm or false 
-local BASE_SPEED = 45 -- Lowered to stay under most speed-cap detections
-local ROTATION_SPEED = 0.15 
+local BASE_SPEED = 60 -- You can push this a bit higher with adaptive waits
+local MIN_WAIT = 0.3 -- Minimum wait for coins right next to you
+local VELOCITY_THRESHOLD = 35 -- The "Legit" studs-per-second the server expects
 
 local bodyVelocity = nil
 local bodyGyro = nil
 local collectedCoins = {} 
+local lastCollectionPos = hrp.Position
 
 --- ### 1. PERSISTENT GUI ### ---
 local screenGui = player.PlayerGui:FindFirstChild("PersistentFarmGui")
@@ -20,18 +22,16 @@ if not screenGui then
     screenGui = Instance.new("ScreenGui", player.PlayerGui)
     screenGui.Name = "PersistentFarmGui"
     screenGui.ResetOnSpawn = false
-
     local btn = Instance.new("TextButton", screenGui)
     btn.Size = UDim2.new(0, 160, 0, 50)
     btn.Position = UDim2.new(0.5, -80, 0.1, 0)
-    btn.Text = "SAFE Farm: OFF"
+    btn.Text = "ADAPTIVE Farm: OFF"
     btn.BackgroundColor3 = Color3.fromRGB(170, 0, 0)
     btn.TextColor3 = Color3.fromRGB(255, 255, 255)
     Instance.new("UICorner", btn)
-
     btn.MouseButton1Click:Connect(function()
         getgenv().coinFarm = not getgenv().coinFarm
-        btn.Text = getgenv().coinFarm and "SAFE Farm: ON" or "SAFE Farm: OFF"
+        btn.Text = getgenv().coinFarm and "ADAPTIVE Farm: ON" or "ADAPTIVE Farm: OFF"
         btn.BackgroundColor3 = getgenv().coinFarm and Color3.fromRGB(0, 170, 0) or Color3.fromRGB(170, 0, 0)
     end)
 end
@@ -50,7 +50,7 @@ RunService.Stepped:Connect(function()
     end
 end)
 
---- ### 3. BLACKLIST & SEARCH ### ---
+--- ### 3. SEARCH LOGIC ### ---
 local function getNearestCoin()
     local closestCoin = nil
     local shortestDistance = math.huge
@@ -66,22 +66,20 @@ local function getNearestCoin()
     return closestCoin
 end
 
--- Cleanup blacklist every 10 seconds to keep memory low
 task.spawn(function()
     while true do
         local now = tick()
-        for coin, timeCollected in pairs(collectedCoins) do
-            if now - timeCollected > 10 then collectedCoins[coin] = nil end
+        for coin, time in pairs(collectedCoins) do
+            if now - time > 15 then collectedCoins[coin] = nil end
         end
-        task.wait(2)
+        task.wait(5)
     end
 end)
 
---- ### 4. THE ANTI-FLAG ENGINE ### ---
+--- ### 4. THE ADAPTIVE ENGINE ### ---
 task.spawn(function()
     while true do
         if getgenv().coinFarm and hrp then
-            -- Physics Check
             if not bodyVelocity or bodyVelocity.Parent ~= hrp then
                 bodyVelocity = Instance.new("BodyVelocity", hrp)
                 bodyVelocity.MaxForce = Vector3.new(9e9, 9e9, 9e9)
@@ -92,20 +90,24 @@ task.spawn(function()
 
             local target = getNearestCoin()
             if target and target.Parent then
-                local distance = (target.Position - hrp.Position).Magnitude
+                local distanceToTarget = (target.Position - hrp.Position).Magnitude
                 
-                if distance > 1 then
-                    -- Smoothly fly to target
+                if distanceToTarget > 1 then
                     bodyVelocity.Velocity = (target.Position - hrp.Position).Unit * BASE_SPEED
-                    bodyGyro.CFrame = bodyGyro.CFrame:Lerp(CFrame.lookAt(hrp.Position, target.Position), ROTATION_SPEED)
+                    bodyGyro.CFrame = bodyGyro.CFrame:Lerp(CFrame.lookAt(hrp.Position, target.Position), 0.2)
                 else
-                    -- ARRIVED: Anti-Flag logic
+                    -- REACHED TARGET
                     bodyVelocity.Velocity = Vector3.zero
-                    collectedCoins[target] = tick()
                     
-                    -- RANDOMIZED WAIT: Between 1.2 and 2.0 seconds
-                    -- This breaks the "robotic" pattern that anti-cheats look for
-                    task.wait(math.random(12, 20) / 10) 
+                    -- CALC ADAPTIVE WAIT
+                    -- We calculate how long a "normal" player would take to travel the distance
+                    local travelDistance = (hrp.Position - lastCollectionPos).Magnitude
+                    local adaptiveWait = math.clamp(travelDistance / VELOCITY_THRESHOLD, MIN_WAIT, 3.5)
+                    
+                    collectedCoins[target] = tick()
+                    lastCollectionPos = hrp.Position
+                    
+                    task.wait(adaptiveWait) 
                 end
             else
                 bodyVelocity.Velocity = Vector3.zero
