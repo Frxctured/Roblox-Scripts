@@ -7,12 +7,14 @@ local hrp = character:WaitForChild("HumanoidRootPart")
 
 -- CONFIGURATION
 getgenv().coinFarm = getgenv().coinFarm or false 
-local FLIGHT_SPEED = 75 -- Increased speed
+local FLIGHT_SPEED = 75 
 local ROTATION_SPEED = 0.2 
 
 local bodyVelocity = nil
 local bodyGyro = nil
-local lastCoin = nil -- To prevent getting stuck on the same coin
+
+-- BLACKLIST SYSTEM
+local collectedCoins = {} -- Format: [Object] = TimeCollected
 
 --- ### 1. PERSISTENT GUI ### ---
 local screenGui = player.PlayerGui:FindFirstChild("PersistentFarmGui")
@@ -50,15 +52,15 @@ RunService.Stepped:Connect(function()
     end
 end)
 
---- ### 3. OPTIMIZED SEARCH ### ---
+--- ### 3. OPTIMIZED SEARCH WITH BLACKLIST ### ---
 local function getNearestCoin()
     local closestCoin = nil
     local shortestDistance = math.huge
+    local currentTime = tick()
     
-    -- Using GetChildren on a specific folder is faster if the game uses one
-    -- But GetDescendants ensures we find everything
     for _, child in ipairs(workspace:GetDescendants()) do
-        if child:IsA("BasePart") and child.Name == "Coin_Server" and child ~= lastCoin then
+        -- Only target if: Is a coin AND NOT in our blacklist
+        if child:IsA("BasePart") and child.Name == "Coin_Server" and not collectedCoins[child] then
             local distance = (child.Position - hrp.Position).Magnitude
             if distance < shortestDistance then
                 shortestDistance = distance
@@ -69,11 +71,23 @@ local function getNearestCoin()
     return closestCoin
 end
 
+-- CLEANUP LOOP: Removes coins from blacklist after 5 seconds
+task.spawn(function()
+    while true do
+        local now = tick()
+        for coin, timeCollected in pairs(collectedCoins) do
+            if now - timeCollected > 5 then -- 5 second "ignore" window
+                collectedCoins[coin] = nil
+            end
+        end
+        task.wait(1)
+    end
+end)
+
 --- ### 4. THE SPEED LOOP ### ---
 task.spawn(function()
     while true do
         if getgenv().coinFarm and hrp then
-            -- Physics Check
             if not bodyVelocity or bodyVelocity.Parent ~= hrp then
                 bodyVelocity = Instance.new("BodyVelocity", hrp)
                 bodyVelocity.MaxForce = Vector3.new(9e9, 9e9, 9e9)
@@ -86,16 +100,17 @@ task.spawn(function()
             if target and target.Parent then
                 local distance = (target.Position - hrp.Position).Magnitude
                 
-                if distance > 1 then
-                    -- Movement
+                if distance > 1.5 then
                     bodyVelocity.Velocity = (target.Position - hrp.Position).Unit * FLIGHT_SPEED
                     bodyGyro.CFrame = CFrame.lookAt(hrp.Position, target.Position)
                 else
-                    -- "Instant" pickup logic
+                    -- REACHED TARGET
                     bodyVelocity.Velocity = Vector3.zero
-                    lastCoin = target -- Temporarily ignore this coin so we move to next
-                    wait(0.5)
+                    collectedCoins[target] = tick() -- ADD TO BLACKLIST
+                    task.wait(0.1) -- Small pause to ensure collection event fires
                 end
+            else
+                bodyVelocity.Velocity = Vector3.zero
             end
         else
             if bodyVelocity then 
@@ -104,6 +119,6 @@ task.spawn(function()
                 if character:FindFirstChild("Humanoid") then character.Humanoid.PlatformStand = false end
             end
         end
-        RunService.Heartbeat:Wait() -- Runs as fast as the physics engine allows
+        RunService.Heartbeat:Wait()
     end
 end)
