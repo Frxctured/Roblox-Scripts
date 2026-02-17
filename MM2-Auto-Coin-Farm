@@ -119,7 +119,7 @@ task.spawn(function()
             local target = getNearestCoin()
             if target and target.Parent then
                 local distanceToNext = (target.Position - hrp.Position).Magnitude
-                local adaptiveWait = math.clamp(distanceToNext / VELOCITY_THRESHOLD, MIN_WAIT, 3.5)
+                local adaptiveWait = math.clamp(distanceToNext / VELOCITY_THRESHOLD, MIN_WAIT, 3)
                 
                 bodyVelocity.Velocity = Vector3.zero
                 task.wait(adaptiveWait)
