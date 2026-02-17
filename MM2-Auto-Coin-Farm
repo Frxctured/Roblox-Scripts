@@ -7,14 +7,12 @@ local hrp = character:WaitForChild("HumanoidRootPart")
 
 -- CONFIGURATION
 getgenv().coinFarm = getgenv().coinFarm or false 
-local FLIGHT_SPEED = 75 
-local ROTATION_SPEED = 0.2 
+local BASE_SPEED = 45 -- Lowered to stay under most speed-cap detections
+local ROTATION_SPEED = 0.15 
 
 local bodyVelocity = nil
 local bodyGyro = nil
-
--- BLACKLIST SYSTEM
-local collectedCoins = {} -- Format: [Object] = TimeCollected
+local collectedCoins = {} 
 
 --- ### 1. PERSISTENT GUI ### ---
 local screenGui = player.PlayerGui:FindFirstChild("PersistentFarmGui")
@@ -24,16 +22,16 @@ if not screenGui then
     screenGui.ResetOnSpawn = false
 
     local btn = Instance.new("TextButton", screenGui)
-    btn.Size = UDim2.new(0, 150, 0, 50)
-    btn.Position = UDim2.new(0.5, -75, 0.1, 0)
-    btn.Text = "FAST Farm: OFF"
+    btn.Size = UDim2.new(0, 160, 0, 50)
+    btn.Position = UDim2.new(0.5, -80, 0.1, 0)
+    btn.Text = "SAFE Farm: OFF"
     btn.BackgroundColor3 = Color3.fromRGB(170, 0, 0)
     btn.TextColor3 = Color3.fromRGB(255, 255, 255)
     Instance.new("UICorner", btn)
 
     btn.MouseButton1Click:Connect(function()
         getgenv().coinFarm = not getgenv().coinFarm
-        btn.Text = getgenv().coinFarm and "FAST Farm: ON" or "FAST Farm: OFF"
+        btn.Text = getgenv().coinFarm and "SAFE Farm: ON" or "SAFE Farm: OFF"
         btn.BackgroundColor3 = getgenv().coinFarm and Color3.fromRGB(0, 170, 0) or Color3.fromRGB(170, 0, 0)
     end)
 end
@@ -52,14 +50,11 @@ RunService.Stepped:Connect(function()
     end
 end)
 
---- ### 3. OPTIMIZED SEARCH WITH BLACKLIST ### ---
+--- ### 3. BLACKLIST & SEARCH ### ---
 local function getNearestCoin()
     local closestCoin = nil
     local shortestDistance = math.huge
-    local currentTime = tick()
-    
     for _, child in ipairs(workspace:GetDescendants()) do
-        -- Only target if: Is a coin AND NOT in our blacklist
         if child:IsA("BasePart") and child.Name == "Coin_Server" and not collectedCoins[child] then
             local distance = (child.Position - hrp.Position).Magnitude
             if distance < shortestDistance then
@@ -71,23 +66,22 @@ local function getNearestCoin()
     return closestCoin
 end
 
--- CLEANUP LOOP: Removes coins from blacklist after 5 seconds
+-- Cleanup blacklist every 10 seconds to keep memory low
 task.spawn(function()
     while true do
         local now = tick()
         for coin, timeCollected in pairs(collectedCoins) do
-            if now - timeCollected > 5 then -- 5 second "ignore" window
-                collectedCoins[coin] = nil
-            end
+            if now - timeCollected > 10 then collectedCoins[coin] = nil end
         end
-        task.wait(1)
+        task.wait(2)
     end
 end)
 
---- ### 4. THE SPEED LOOP ### ---
+--- ### 4. THE ANTI-FLAG ENGINE ### ---
 task.spawn(function()
     while true do
         if getgenv().coinFarm and hrp then
+            -- Physics Check
             if not bodyVelocity or bodyVelocity.Parent ~= hrp then
                 bodyVelocity = Instance.new("BodyVelocity", hrp)
                 bodyVelocity.MaxForce = Vector3.new(9e9, 9e9, 9e9)
@@ -101,13 +95,17 @@ task.spawn(function()
                 local distance = (target.Position - hrp.Position).Magnitude
                 
                 if distance > 1 then
-                    bodyVelocity.Velocity = (target.Position - hrp.Position).Unit * FLIGHT_SPEED
-                    bodyGyro.CFrame = CFrame.lookAt(hrp.Position, target.Position)
+                    -- Smoothly fly to target
+                    bodyVelocity.Velocity = (target.Position - hrp.Position).Unit * BASE_SPEED
+                    bodyGyro.CFrame = bodyGyro.CFrame:Lerp(CFrame.lookAt(hrp.Position, target.Position), ROTATION_SPEED)
                 else
-                    -- REACHED TARGET
+                    -- ARRIVED: Anti-Flag logic
                     bodyVelocity.Velocity = Vector3.zero
-                    collectedCoins[target] = tick() -- ADD TO BLACKLIST
-                    task.wait(0.75) -- Small pause to ensure collection event fires
+                    collectedCoins[target] = tick()
+                    
+                    -- RANDOMIZED WAIT: Between 1.2 and 2.0 seconds
+                    -- This breaks the "robotic" pattern that anti-cheats look for
+                    task.wait(math.random(12, 20) / 10) 
                 end
             else
                 bodyVelocity.Velocity = Vector3.zero
