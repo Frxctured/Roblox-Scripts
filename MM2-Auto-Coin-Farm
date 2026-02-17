@@ -94,7 +94,7 @@ task.spawn(function()
                     -- "Instant" pickup logic
                     bodyVelocity.Velocity = Vector3.zero
                     lastCoin = target -- Temporarily ignore this coin so we move to next
-                    wait(0.75)
+                    wait(0.5)
                 end
             end
         else
