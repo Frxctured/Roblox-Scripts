@@ -45,25 +45,36 @@ local function updateGui()
     end
 end
 
--- Reset logic
+-- Reset on Spawn
 local function setupCharacter(newChar)
     character = newChar
     hrp = character:WaitForChild("HumanoidRootPart")
-    collectedCount = 0
+    collectedCount = 0 
     updateGui()
 end
 
 player.CharacterAdded:Connect(setupCharacter)
 
---- ### 2. GUI SCANNER (HELPER) ### ---
--- This will help us find your game's coin counter. Check F9 console!
-for _, v in pairs(player.PlayerGui:GetDescendants()) do
-    if v:IsA("TextLabel") and (string.find(string.lower(v.Text), "coin") or tonumber(v.Text)) then
-        print("POSSIBLE COIN GUI FOUND: " .. v:GetFullName() .. " | Current Text: " .. v.Text)
+--- ### 2. GUI SCANNER (F9) ### ---
+-- Check your F9 console to find the REAL coin GUI path!
+task.spawn(function()
+    for _, v in pairs(player.PlayerGui:GetDescendants()) do
+        if v:IsA("TextLabel") and (string.find(string.lower(v.Text), "coin") or tonumber(v.Text)) then
+            print("FOUND POTENTIAL COIN GUI: " .. v:GetFullName() .. " | Text: " .. v.Text)
+        end
     end
-end
+end)
 
---- ### 3. SEARCH LOGIC ### ---
+--- ### 3. THE NOCLIP ### ---
+RunService.Stepped:Connect(function()
+    if getgenv().coinFarm and character then
+        for _, part in ipairs(character:GetDescendants()) do
+            if part:IsA("BasePart") then part.CanCollide = false end
+        end
+    end
+end)
+
+--- ### 4. SEARCH LOGIC ### ---
 local function getNearestCoin()
     local closestCoin = nil
     local shortestDistance = math.huge
@@ -79,18 +90,23 @@ local function getNearestCoin()
     return closestCoin
 end
 
---- ### 4. THE PROXIMITY-BASED ENGINE ### ---
+--- ### 5. THE ADAPTIVE PROXIMITY ENGINE ### ---
 task.spawn(function()
     while true do
         if getgenv().coinFarm and hrp then
+            -- Reset Check
             if collectedCount >= RESET_CAP then
                 getgenv().coinFarm = false
-                if character:FindFirstChild("Humanoid") then character.Humanoid.Health = 0 end
+                updateGui()
+                if character:FindFirstChild("Humanoid") then
+                    character.Humanoid.Health = 0 
+                end
                 task.wait(5)
                 getgenv().coinFarm = true 
                 continue
             end
 
+            -- Physics
             if not bodyVelocity or bodyVelocity.Parent ~= hrp then
                 bodyVelocity = Instance.new("BodyVelocity", hrp)
                 bodyVelocity.MaxForce = Vector3.new(9e9, 9e9, 9e9)
@@ -99,6 +115,7 @@ task.spawn(function()
 
             local target = getNearestCoin()
             if target and target.Parent then
+                -- Adaptive Wait BEFORE movement (Your logic!)
                 local distanceToNext = (target.Position - hrp.Position).Magnitude
                 local adaptiveWait = math.clamp(distanceToNext / VELOCITY_THRESHOLD, MIN_WAIT, 3.5)
                 
@@ -111,19 +128,22 @@ task.spawn(function()
                     RunService.Heartbeat:Wait()
                 end
 
-                -- MAGNITUDE COLLECTION (Count it immediately upon arrival)
+                -- COLLECTION TRIGGER
                 if getgenv().coinFarm then
                     bodyVelocity.Velocity = Vector3.zero
-                    collectedCoins[target] = tick()
-                    collectedCount = collectedCount + 1
+                    collectedCoins[target] = tick() -- Blacklist it
+                    collectedCount = collectedCount + 1 -- Increment immediately
                     updateGui()
-                    task.wait(0.2) -- Tiny buffer so we don't zoom away before the touch registers
+                    task.wait(0.2) -- Small buffer to let the game process the "Touch"
                 end
             else
                 bodyVelocity.Velocity = Vector3.zero
             end
         else
-            if bodyVelocity then bodyVelocity:Destroy() bodyVelocity = nil end
+            if bodyVelocity then 
+                bodyVelocity:Destroy() bodyVelocity = nil 
+                if character:FindFirstChild("Humanoid") then character.Humanoid.PlatformStand = false end
+            end
         end
         RunService.Heartbeat:Wait()
     end
