@@ -6,20 +6,32 @@ local character = player.Character or player.CharacterAdded:Wait()
 local hrp = character:WaitForChild("HumanoidRootPart")
 
 -- CONFIGURATION
-getgenv().coinFarm = false -- Toggle variable
+getgenv().coinFarm = false 
 local FLIGHT_SPEED = 60
 local ROTATION_SPEED = 0.15
 
 local bodyVelocity = nil
 local bodyGyro = nil
 
---- ### 1. HELPER: FIND NEAREST COIN ### ---
+--- ### 1. THE NOCLIP LOGIC ### ---
+-- This must run every frame to prevent the engine from re-enabling collisions
+RunService.Stepped:Connect(function()
+	if getgenv().coinFarm and character then
+		for _, part in ipairs(character:GetDescendants()) do
+			if part:IsA("BasePart") and part.CanCollide == true then
+				part.CanCollide = false
+			end
+		end
+	end
+end)
+
+--- ### 2. HELPER: FIND NEAREST COIN ### ---
 local function getNearestCoin()
 	local closestCoin = nil
 	local shortestDistance = math.huge
 	
-	-- We search the Workspace for parts named "Coin_Server"
 	for _, child in ipairs(workspace:GetDescendants()) do
+		-- Ensure the coin exists and is actually a part
 		if child:IsA("BasePart") and child.Name == "Coin_Server" then
 			local distance = (child.Position - hrp.Position).Magnitude
 			if distance < shortestDistance then
@@ -31,14 +43,14 @@ local function getNearestCoin()
 	return closestCoin
 end
 
---- ### 2. FLIGHT PHYSICS SETUP ### ---
+--- ### 3. FLIGHT PHYSICS SETUP ### ---
 local function setupPhysics()
-	if not bodyVelocity then
+	if not bodyVelocity or bodyVelocity.Parent ~= hrp then
 		bodyVelocity = Instance.new("BodyVelocity")
 		bodyVelocity.MaxForce = Vector3.new(1, 1, 1) * math.huge
 		bodyVelocity.Parent = hrp
 	end
-	if not bodyGyro then
+	if not bodyGyro or bodyGyro.Parent ~= hrp then
 		bodyGyro = Instance.new("BodyGyro")
 		bodyGyro.MaxTorque = Vector3.new(1, 1, 1) * math.huge
 		bodyGyro.P = 3000
@@ -55,7 +67,7 @@ local function stopPhysics()
 	end
 end
 
---- ### 3. THE FARMING LOOP ### ---
+--- ### 4. THE FARMING LOOP ### ---
 task.spawn(function()
 	while true do
 		if getgenv().coinFarm then
@@ -67,35 +79,33 @@ task.spawn(function()
 				local distance = (target.Position - hrp.Position).Magnitude
 				
 				if distance > 2 then
-					-- Fly toward the coin
 					bodyVelocity.Velocity = direction * FLIGHT_SPEED
 					bodyGyro.CFrame = bodyGyro.CFrame:Lerp(CFrame.lookAt(hrp.Position, target.Position), ROTATION_SPEED)
 				else
-					-- We arrived! Wait a moment for the game to register the collection
+					-- Arrived at coin
 					bodyVelocity.Velocity = Vector3.zero
-					task.wait(0.5) 
+					task.wait(0.2) 
 				end
 			else
-				-- No coins found, hover in place
 				bodyVelocity.Velocity = Vector3.zero
 			end
 		else
 			stopPhysics()
 		end
-		task.wait() -- Small delay to prevent crashing
+		task.wait()
 	end
 end)
 
---- ### 4. SIMPLE GUI TOGGLE ### ---
+--- ### 5. GUI TOGGLE ### ---
 local screenGui = Instance.new("ScreenGui", player.PlayerGui)
 local btn = Instance.new("TextButton", screenGui)
 btn.Size = UDim2.new(0, 150, 0, 50)
 btn.Position = UDim2.new(0.5, -75, 0.1, 0)
-btn.Text = "Coin Farm: OFF"
+btn.Text = "Noclip Farm: OFF"
 btn.BackgroundColor3 = Color3.fromRGB(170, 0, 0)
 
 btn.MouseButton1Click:Connect(function()
 	getgenv().coinFarm = not getgenv().coinFarm
-	btn.Text = getgenv().coinFarm and "Coin Farm: ON" or "Coin Farm: OFF"
+	btn.Text = getgenv().coinFarm and "Noclip Farm: ON" or "Noclip Farm: OFF"
 	btn.BackgroundColor3 = getgenv().coinFarm and Color3.fromRGB(0, 170, 0) or Color3.fromRGB(170, 0, 0)
 end)
