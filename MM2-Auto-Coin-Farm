@@ -12,7 +12,7 @@ local MIN_WAIT = 0.4
 local VELOCITY_THRESHOLD = 30
 
 local bodyVelocity = nil
-local bodyGyro = nil
+-- local bodyGyro = nil
 local collectedCoins = {} 
 local lastCollectionPos = hrp.Position
 
@@ -84,8 +84,8 @@ task.spawn(function()
             if not bodyVelocity or bodyVelocity.Parent ~= hrp then
                 bodyVelocity = Instance.new("BodyVelocity", hrp)
                 bodyVelocity.MaxForce = Vector3.new(9e9, 9e9, 9e9)
-                bodyGyro = Instance.new("BodyGyro", hrp)
-                bodyGyro.MaxTorque = Vector3.new(9e9, 9e9, 9e9)
+                -- bodyGyro = Instance.new("BodyGyro", hrp)
+                -- bodyGyro.MaxTorque = Vector3.new(9e9, 9e9, 9e9)
                 character:WaitForChild("Humanoid").PlatformStand = true
             end
 
@@ -105,7 +105,7 @@ task.spawn(function()
                 -- Now we fly. Since we already waited, we can go at BASE_SPEED safely.
                 while getgenv().coinFarm and target and target.Parent and (target.Position - hrp.Position).Magnitude > 1.5 do
                     bodyVelocity.Velocity = (target.Position - hrp.Position).Unit * BASE_SPEED
-                    bodyGyro.CFrame = bodyGyro.CFrame:Lerp(CFrame.lookAt(hrp.Position, target.Position), 0.2)
+                    -- bodyGyro.CFrame = bodyGyro.CFrame:Lerp(CFrame.lookAt(hrp.Position, target.Position), 0.2)
                     RunService.Heartbeat:Wait()
                 end
 
@@ -120,7 +120,7 @@ task.spawn(function()
         else
             if bodyVelocity then 
                 bodyVelocity:Destroy() bodyVelocity = nil 
-                bodyGyro:Destroy() bodyGyro = nil 
+                -- bodyGyro:Destroy() bodyGyro = nil 
                 if character:FindFirstChild("Humanoid") then character.Humanoid.PlatformStand = false end
             end
         end
