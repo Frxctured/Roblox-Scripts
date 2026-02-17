@@ -1,99 +1,101 @@
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
-local TweenService = game:GetService("TweenService")
 
 local player = Players.LocalPlayer
 local character = player.Character or player.CharacterAdded:Wait()
 local hrp = character:WaitForChild("HumanoidRootPart")
 
 -- CONFIGURATION
-local TARGET_NAME = "TargetPart" -- Change this to your object's name
-local FLIGHT_SPEED = 70
-local ROTATION_SPEED = 0.15 -- Lower = smoother turning
+getgenv().coinFarm = false -- Toggle variable
+local FLIGHT_SPEED = 60
+local ROTATION_SPEED = 0.15
 
-local isFlying = false
 local bodyVelocity = nil
 local bodyGyro = nil
 
---- ### 1. GUI CREATION ### ---
-local screenGui = Instance.new("ScreenGui", player.PlayerGui)
-screenGui.Name = "AutoFlightGui"
-
-local toggleButton = Instance.new("TextButton", screenGui)
-toggleButton.Size = UDim2.new(0, 150, 0, 50)
-toggleButton.Position = UDim2.new(0.5, -75, 0.8, 0)
-toggleButton.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
-toggleButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-toggleButton.Text = "Auto-Fly: OFF"
-toggleButton.Font = Enum.Font.Offset
-toggleButton.TextSize = 18
-
--- Rounding the corners
-local uiCorner = Instance.new("UICorner", toggleButton)
-
---- ### 2. FLIGHT LOGIC ### ---
-
-local function startFlight()
-	local target = workspace:FindFirstChild(TARGET_NAME)
-	if not target then warn("Target not found!") return end
-
-	-- Setup Physics Objects
-	bodyVelocity = Instance.new("BodyVelocity")
-	bodyVelocity.MaxForce = Vector3.new(1, 1, 1) * math.huge
-	bodyVelocity.Velocity = Vector3.zero
-	bodyVelocity.Parent = hrp
-
-	bodyGyro = Instance.new("BodyGyro")
-	bodyGyro.MaxTorque = Vector3.new(1, 1, 1) * math.huge
-	bodyGyro.P = 3000
-	bodyGyro.CFrame = hrp.CFrame
-	bodyGyro.Parent = hrp
-
-	character.Humanoid.PlatformStand = true
+--- ### 1. HELPER: FIND NEAREST COIN ### ---
+local function getNearestCoin()
+	local closestCoin = nil
+	local shortestDistance = math.huge
 	
-	-- Movement Loop
-	task.spawn(function()
-		while isFlying do
-			local targetObj = workspace:FindFirstChild(TARGET_NAME)
-			if targetObj and hrp then
-				local origin = hrp.Position
-				local destination = targetObj.Position
-				local direction = (destination - origin).Unit
-				local distance = (destination - origin).Magnitude
-
-				if distance > 5 then
-					bodyVelocity.Velocity = direction * FLIGHT_SPEED
-					-- Smoothly rotate to face target
-					bodyGyro.CFrame = bodyGyro.CFrame:Lerp(CFrame.lookAt(origin, destination), ROTATION_SPEED)
-				else
-					bodyVelocity.Velocity = Vector3.zero
-				end
+	-- We search the Workspace for parts named "Coin_Server"
+	for _, child in ipairs(workspace:GetDescendants()) do
+		if child:IsA("BasePart") and child.Name == "Coin_Server" then
+			local distance = (child.Position - hrp.Position).Magnitude
+			if distance < shortestDistance then
+				shortestDistance = distance
+				closestCoin = child
 			end
-			task.wait()
 		end
-	end)
+	end
+	return closestCoin
 end
 
-local function stopFlight()
-	if bodyVelocity then bodyVelocity:Destroy() end
-	if bodyGyro then bodyGyro:Destroy() end
+--- ### 2. FLIGHT PHYSICS SETUP ### ---
+local function setupPhysics()
+	if not bodyVelocity then
+		bodyVelocity = Instance.new("BodyVelocity")
+		bodyVelocity.MaxForce = Vector3.new(1, 1, 1) * math.huge
+		bodyVelocity.Parent = hrp
+	end
+	if not bodyGyro then
+		bodyGyro = Instance.new("BodyGyro")
+		bodyGyro.MaxTorque = Vector3.new(1, 1, 1) * math.huge
+		bodyGyro.P = 3000
+		bodyGyro.Parent = hrp
+	end
+	character.Humanoid.PlatformStand = true
+end
+
+local function stopPhysics()
+	if bodyVelocity then bodyVelocity:Destroy(); bodyVelocity = nil end
+	if bodyGyro then bodyGyro:Destroy(); bodyGyro = nil end
 	if character:FindFirstChild("Humanoid") then
 		character.Humanoid.PlatformStand = false
 	end
 end
 
---- ### 3. TOGGLE INTERACTION ### ---
-
-toggleButton.MouseButton1Click:Connect(function()
-	isFlying = not isFlying
-	
-	if isFlying then
-		toggleButton.Text = "Auto-Fly: ON"
-		toggleButton.BackgroundColor3 = Color3.fromRGB(0, 170, 0)
-		startFlight()
-	else
-		toggleButton.Text = "Auto-Fly: OFF"
-		toggleButton.BackgroundColor3 = Color3.fromRGB(170, 0, 0)
-		stopFlight()
+--- ### 3. THE FARMING LOOP ### ---
+task.spawn(function()
+	while true do
+		if getgenv().coinFarm then
+			setupPhysics()
+			local target = getNearestCoin()
+			
+			if target and target.Parent then
+				local direction = (target.Position - hrp.Position).Unit
+				local distance = (target.Position - hrp.Position).Magnitude
+				
+				if distance > 2 then
+					-- Fly toward the coin
+					bodyVelocity.Velocity = direction * FLIGHT_SPEED
+					bodyGyro.CFrame = bodyGyro.CFrame:Lerp(CFrame.lookAt(hrp.Position, target.Position), ROTATION_SPEED)
+				else
+					-- We arrived! Wait a moment for the game to register the collection
+					bodyVelocity.Velocity = Vector3.zero
+					task.wait(0.5) 
+				end
+			else
+				-- No coins found, hover in place
+				bodyVelocity.Velocity = Vector3.zero
+			end
+		else
+			stopPhysics()
+		end
+		task.wait() -- Small delay to prevent crashing
 	end
+end)
+
+--- ### 4. SIMPLE GUI TOGGLE ### ---
+local screenGui = Instance.new("ScreenGui", player.PlayerGui)
+local btn = Instance.new("TextButton", screenGui)
+btn.Size = UDim2.new(0, 150, 0, 50)
+btn.Position = UDim2.new(0.5, -75, 0.1, 0)
+btn.Text = "Coin Farm: OFF"
+btn.BackgroundColor3 = Color3.fromRGB(170, 0, 0)
+
+btn.MouseButton1Click:Connect(function()
+	getgenv().coinFarm = not getgenv().coinFarm
+	btn.Text = getgenv().coinFarm and "Coin Farm: ON" or "Coin Farm: OFF"
+	btn.BackgroundColor3 = getgenv().coinFarm and Color3.fromRGB(0, 170, 0) or Color3.fromRGB(170, 0, 0)
 end)
