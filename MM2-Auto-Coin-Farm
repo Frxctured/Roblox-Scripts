@@ -100,14 +100,14 @@ task.spawn(function()
             if target and target.Parent then
                 local distance = (target.Position - hrp.Position).Magnitude
                 
-                if distance > 1.5 then
+                if distance > 1 then
                     bodyVelocity.Velocity = (target.Position - hrp.Position).Unit * FLIGHT_SPEED
                     bodyGyro.CFrame = CFrame.lookAt(hrp.Position, target.Position)
                 else
                     -- REACHED TARGET
                     bodyVelocity.Velocity = Vector3.zero
                     collectedCoins[target] = tick() -- ADD TO BLACKLIST
-                    task.wait(0.1) -- Small pause to ensure collection event fires
+                    task.wait(0.75) -- Small pause to ensure collection event fires
                 end
             else
                 bodyVelocity.Velocity = Vector3.zero
