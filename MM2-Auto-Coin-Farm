@@ -7,9 +7,9 @@ local hrp = character:WaitForChild("HumanoidRootPart")
 
 -- CONFIGURATION
 getgenv().coinFarm = getgenv().coinFarm or false 
-local BASE_SPEED = 60 -- You can push this a bit higher with adaptive waits
-local MIN_WAIT = 0.3 -- Minimum wait for coins right next to you
-local VELOCITY_THRESHOLD = 35 -- The "Legit" studs-per-second the server expects
+local BASE_SPEED = 50
+local MIN_WAIT = 0.4
+local VELOCITY_THRESHOLD = 30
 
 local bodyVelocity = nil
 local bodyGyro = nil
@@ -76,10 +76,11 @@ task.spawn(function()
     end
 end)
 
---- ### 4. THE ADAPTIVE ENGINE ### ---
+--- ### 4. THE UPGRADED ADAPTIVE ENGINE ### ---
 task.spawn(function()
     while true do
         if getgenv().coinFarm and hrp then
+            -- Physics Check
             if not bodyVelocity or bodyVelocity.Parent ~= hrp then
                 bodyVelocity = Instance.new("BodyVelocity", hrp)
                 bodyVelocity.MaxForce = Vector3.new(9e9, 9e9, 9e9)
@@ -90,25 +91,29 @@ task.spawn(function()
 
             local target = getNearestCoin()
             if target and target.Parent then
-                local distanceToTarget = (target.Position - hrp.Position).Magnitude
+                -- 1. CALCULATE UPCOMING WAIT
+                -- We look at how far we HAVE to go before we start moving
+                local distanceToNext = (target.Position - hrp.Position).Magnitude
+                local adaptiveWait = math.clamp(distanceToNext / VELOCITY_THRESHOLD, MIN_WAIT, 3.5)
                 
-                if distanceToTarget > 1 then
+                -- 2. PRE-TRAVEL DELAY
+                -- This "stalls" the start of the flight to stay under speed limits
+                bodyVelocity.Velocity = Vector3.zero
+                task.wait(adaptiveWait)
+
+                -- 3. THE FLIGHT
+                -- Now we fly. Since we already waited, we can go at BASE_SPEED safely.
+                while getgenv().coinFarm and target and target.Parent and (target.Position - hrp.Position).Magnitude > 1.5 do
                     bodyVelocity.Velocity = (target.Position - hrp.Position).Unit * BASE_SPEED
                     bodyGyro.CFrame = bodyGyro.CFrame:Lerp(CFrame.lookAt(hrp.Position, target.Position), 0.2)
-                else
-                    -- REACHED TARGET
-                    bodyVelocity.Velocity = Vector3.zero
-                    
-                    -- CALC ADAPTIVE WAIT
-                    -- We calculate how long a "normal" player would take to travel the distance
-                    local travelDistance = (hrp.Position - lastCollectionPos).Magnitude
-                    local adaptiveWait = math.clamp(travelDistance / VELOCITY_THRESHOLD, MIN_WAIT, 3.5)
-                    
-                    collectedCoins[target] = tick()
-                    lastCollectionPos = hrp.Position
-                    
-                    task.wait(adaptiveWait) 
+                    RunService.Heartbeat:Wait()
                 end
+
+                -- 4. COLLECTION
+                bodyVelocity.Velocity = Vector3.zero
+                collectedCoins[target] = tick()
+                -- Small buffer to let the server register the touch
+                task.wait(0.1) 
             else
                 bodyVelocity.Velocity = Vector3.zero
             end
