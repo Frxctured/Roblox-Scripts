@@ -101,6 +101,13 @@ end
 
 RunService.Heartbeat:Connect(function()
     if not getgenv().Config.ESP then clearHighlights() return end
+    
+    -- Added isInRound check to ensure we only ESP during gameplay
+    if not isInRound then 
+        clearHighlights() 
+        return 
+    end
+
     local amIMurderer = (playerRoles[player.Name] and playerRoles[player.Name].Role == "Murderer")
 
     for _, p in pairs(Players:GetPlayers()) do
@@ -113,15 +120,36 @@ RunService.Heartbeat:Connect(function()
             if roleData.Role == "Murderer" then
                 hl.FillColor = Color3.fromRGB(255, 0, 0)
                 hl.FillTransparency = 0.5
+                hl.Enabled = true
             elseif roleData.Role == "Sheriff" or roleData.Role == "Hero" then
                 hl.FillColor = Color3.fromRGB(0, 120, 255)
                 hl.FillTransparency = 0.5
-            elseif amIMurderer and getgenv().Config.SubtleESP then
-                hl.FillTransparency = 1 
-                hl.OutlineColor = Color3.white
-                hl.OutlineTransparency = 0.6
+                hl.Enabled = true
+            elseif amIMurderer then
+                -- Highlight innocents as transparent white for Murderer
+                hl.FillColor = Color3.fromRGB(255, 255, 255)
+                hl.FillTransparency = 0.8 -- Slightly more transparent
+                hl.OutlineColor = Color3.fromRGB(255, 255, 255)
+                hl.OutlineTransparency = 0.5
+                hl.Enabled = true
             else
-                hl:Destroy()
+                hl.Enabled = false -- Hide ESP for regular innocents if you aren't Murd
+            end
+        else
+            hl.Enabled = false
+        end
+    end
+
+    -- RESTORED GUN ESP LOGIC
+    if getgenv().Config.GunESP then
+        local gun = workspace:FindFirstChild("GunDrop")
+        if gun then
+            local handle = gun:FindFirstChild("Handle") or gun:FindFirstChildWhichIsA("BasePart")
+            if handle and not handle:FindFirstChild("GunHighlight") then
+                local ghl = Instance.new("Highlight", handle)
+                ghl.Name = "GunHighlight"
+                ghl.FillColor = Color3.fromRGB(255, 215, 0)
+                ghl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
             end
         end
     end
@@ -134,17 +162,20 @@ GameplayRemotes.RoundStart.OnClientEvent:Connect(function(_, roles)
     playerRoles = roles 
     isInRound = true 
     collectedCoins = {}
+    collectedCount = 0
 end)
 
 GameplayRemotes.RoundEndFade.OnClientEvent:Connect(function() 
     playerRoles = {} 
     isInRound = false 
     clearHighlights() 
+    collectedCount = 0
 end)
 
 GameplayRemotes.CoinCollected.OnClientEvent:Connect(function(_, cur, max) 
     collectedCount = tonumber(cur) or 0 
     currentMax = tonumber(max) or 50 
+    StatusLabel:Set("Status: Farming ("..collectedCount.."/"..currentMax..")")
 end)
 
 --- ### 6. THE CORE ENGINE ### ---
@@ -168,8 +199,6 @@ task.spawn(function()
             StatusLabel:Set("Status: Farm Disabled")
         elseif not isInRound then
             StatusLabel:Set("Status: Waiting for Round...")
-        elseif humanoid and humanoid.Health <= 0 then
-            StatusLabel:Set("Status: Spectating - Next Round Soon")
         elseif collectedCount >= currentMax then
             StatusLabel:Set("Status: Bag Full - Resetting")
         else
@@ -181,6 +210,7 @@ task.spawn(function()
             -- AGGRESSIVE RESET LOGIC
             if collectedCount >= currentMax and currentMax > 0 then
                 humanoid.Health = 0
+                collectedCount = 0
                 isInRound = false
                 task.wait(2)
                 continue
