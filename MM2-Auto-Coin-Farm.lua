@@ -1,22 +1,27 @@
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 local Window = Rayfield:CreateWindow({
-   Name = "FRXCTURED'S MM2",
-   LoadingTitle = "Frxctured's MM2 Menu",
+   Name = "Frxctured's MM2 Menu",
+   Icon = "audio-waveform"
+   LoadingTitle = "Loading bleh :3",
    LoadingSubtitle = "by Frxctured",
+   ShowText = "Open"
    ConfigurationSaving = { Enabled = false },
-   KeySystem = false
 })
 
 -- ### 1. STATE MANAGEMENT ### --
 getgenv().Config = {
-    Farm = false,
-    ESP = true,
-    GunESP = true,
-    Speed = 50,
-    SafetyDist = 18,
-    HideDepth = -50,
-    MinWait = 0.2
+    Farm = {
+        Active = false,
+        Speed = 50,
+        MinWait = 0.2
+    },
+    ESP = {
+        Murderer = false,
+        Sheriff = false,
+        Innocent = false,
+        Gun = false
+    },
 }
 
 local Players = game:GetService("Players")
@@ -36,46 +41,74 @@ local collectedCount = 0
 local currentMax = 50 
 local bodyVelocity = nil
 
--- ### 2. UI TABS & ELEMENTS ### --
-local MainTab = Window:CreateTab("Farming", 4483362458)
-local VisualsTab = Window:CreateTab("Visuals", 4483345998)
+-- ### UI TABS & ELEMENTS ### --
+local MainTab = Window:CreateTab("Farming", "hand-coins")
+local ESPTab = Window:CreateTab("ESP", "eye")
+local OtherTab = Window:CreateTab("Other", "info")
 
--- Added Status Label
+
+-- ## MAIN TAB ## --
+
 local StatusLabel = MainTab:CreateLabel("Status: Initializing...")
 
 MainTab:CreateToggle({
-   Name = "Coin Farm",
-   CurrentValue = false,
-   Callback = function(Value) getgenv().Config.Farm = Value end,
+    Name = "Coin Farm",
+    CurrentValue = getgenv().Config.Farm.Active,
+    Callback = function(Value) getgenv().Config.Farm.Active = Value end,
 })
 
 MainTab:CreateSlider({
-   Name = "Farm Speed",
-   Range = {25, 85},
-   Increment = 1,
-   Suffix = " studs/s",
-   CurrentValue = 50,
-   Callback = function(Value) getgenv().Config.Speed = Value end,
+    Name = "Farm Speed",
+    Range = {25, 85},
+    Increment = 1,
+    Suffix = " studs/s",
+    CurrentValue = getgenv().Config.Farm.Speed,
+    Callback = function(Value) getgenv().Config.Farm.Speed = Value end,
 })
+
+
+-- ## ESP TAB ## --
+
+ESPTab:CreateToggle({
+    Name = "Show Murderer",
+    CurrentValue = true,
+    Callback = function(Value) getgenv().Config.ESP.Murderer = Value end,
+})
+
+ESPTab:CreateToggle({
+    Name = "Show Sheriff",
+    CurrentValue = true,
+    Callback = function(Value) getgenv().Config.ESP.Sheriff = Value end,
+})
+
+ESPTab:CreateToggle({
+    Name = "Show Innocents (only as Murderer)",
+    CurrentValue = true,
+    Callback = function(Value) getgenv().Config.ESP.Sheriff = Value end,
+})
+
+ESPTab:CreateToggle({
+    Name = "Show Gun Drop",
+    CurrentValue = true,
+    Callback = function(Value) getgenv().Config.ESP.Gun = Value end,
+})
+
+
+-- ## OTHER TAB ## --
 
 MainTab:CreateButton({
-   Name = "Server Hop",
-   Callback = function()
-       local Servers = game.HttpService:JSONDecode(game:HttpGet("https://games.roblox.com/v1/games/"..game.PlaceId.."/servers/Public?sortOrder=Desc&limit=100"))
-       for i,v in pairs(Servers.data) do
-           if v.playing < v.maxPlayers and v.id ~= game.JobId then
-               TeleportService:TeleportToPlaceInstance(game.PlaceId, v.id)
-               break
-           end
-       end
-   end,
+    Name = "Server Hop",
+    Callback = function()
+        local Servers = game.HttpService:JSONDecode(game:HttpGet("https://games.roblox.com/v1/games/"..game.PlaceId.."/servers/Public?sortOrder=Desc&limit=100"))
+        for i,v in pairs(Servers.data) do
+            if v.playing < v.maxPlayers and v.id ~= game.JobId then
+                TeleportService:TeleportToPlaceInstance(game.PlaceId, v.id)
+                break
+            end
+        end
+    end,
 })
 
-VisualsTab:CreateToggle({
-   Name = "Player Role ESP",
-   CurrentValue = true,
-   Callback = function(Value) getgenv().Config.ESP = Value end,
-})
 
 --- ### 3. AFK ANTI-KICK ### ---
 -- Prevents 20-minute idle kick
@@ -99,15 +132,11 @@ local function clearHighlights()
 end
 
 RunService.Heartbeat:Connect(function()
-    if not getgenv().Config.ESP then clearHighlights() return end
-    
-    -- Added isInRound check to ensure we only ESP during gameplay
+
     if not isInRound then 
         clearHighlights() 
         return 
-    end
-
-    -- Dynamic Role Detection (Checks Backpack/Character for weapons)
+    end    -- Dynamic Role Detection (Checks Backpack/Character for weapons)
     local function getRole(p)
         if p.Backpack:FindFirstChild("Knife") or (p.Character and p.Character:FindFirstChild("Knife")) then
             return "Murderer"
@@ -127,16 +156,15 @@ RunService.Heartbeat:Connect(function()
         local hl = p.Character:FindFirstChild("RoleHighlight") or Instance.new("Highlight", p.Character)
         hl.Name = "RoleHighlight"
         
-        if pRole == "Murderer" then
+        if pRole == "Murderer" and getgenv().Config.ESP.Murderer then
             hl.FillColor = Color3.fromRGB(255, 0, 0)
             hl.FillTransparency = 0.5
             hl.Enabled = true
-        elseif pRole == "Sheriff" then
+        elseif pRole == "Sheriff" and getgenv().Config.ESP.Sheriff then
             hl.FillColor = Color3.fromRGB(0, 120, 255)
             hl.FillTransparency = 0.5
             hl.Enabled = true
-        elseif amIMurderer then
-            -- Highlight innocents as transparent white for Murderer
+        elseif amIMurderer and getgenv().Config.ESP.Innocent  then
             hl.FillColor = Color3.fromRGB(255, 255, 255)
             hl.FillTransparency = 0.8 
             hl.OutlineColor = Color3.fromRGB(255, 255, 255)
@@ -148,16 +176,13 @@ RunService.Heartbeat:Connect(function()
     end
 
     -- RESTORED GUN ESP LOGIC
-    if getgenv().Config.GunESP then
+    if getgenv().Config.ESP.Gun then
         local gun = workspace:FindFirstChild("GunDrop", true)
         if gun then
-            -- local handle = gun:FindFirstChild("Handle") or gun:FindFirstChildWhichIsA("BasePart")
-            -- if handle and not handle:FindFirstChild("GunHighlight") then
-                local ghl = Instance.new("Highlight", gun)
-                ghl.Name = "GunHighlight"
-                ghl.FillColor = Color3.fromRGB(0, 120, 255)
-                ghl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-            -- end
+            local ghl = Instance.new("Highlight", gun)
+            ghl.Name = "GunHighlight"
+            ghl.FillColor = Color3.fromRGB(255, 215, 0)
+            ghl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
         end
     end
 end)
@@ -190,7 +215,7 @@ end)
 
 RunService.Stepped:Connect(function()
     if character then
-        if getgenv().Config.Farm then
+        if getgenv().Config.Farm.Active then
             for _, part in ipairs(character:GetDescendants()) do
                 if part:IsA("BasePart") then part.CanCollide = false end
             end
@@ -209,7 +234,7 @@ task.spawn(function()
         local humanoid = character and character:FindFirstChild("Humanoid")
         
         -- ### STATUS UPDATE LOGIC ### --
-        if not getgenv().Config.Farm then
+        if not getgenv().Config.Farm.Active then
             StatusLabel:Set("Status: Farm Disabled")
         elseif not isInRound then
             StatusLabel:Set("Status: Waiting for Round...")
@@ -224,7 +249,7 @@ task.spawn(function()
             isInLobby = true
         end
 
-        if getgenv().Config.Farm and isInRound and not isInLobby and hrp and humanoid and humanoid.Health > 0 then
+        if getgenv().Config.Farm.Active and isInRound and not isInLobby and hrp and humanoid and humanoid.Health > 0 then
             
             -- AGGRESSIVE RESET LOGIC
             if collectedCount >= currentMax and currentMax > 0 then
@@ -259,10 +284,9 @@ task.spawn(function()
                 bodyVelocity.Velocity = Vector3.zero
                 task.wait(adaptiveDelay)
 
-                while getgenv().Config.Farm and target and target.Parent and (target.Position-hrp.Position).Magnitude > 0.5 do
+                while getgenv().Config.Farm.Active and target and target.Parent and (target.Position-hrp.Position).Magnitude > 0.5 do
                     if not isInRound or humanoid.Health <= 0 then break end
-                    local jitterSpeed = getgenv().Config.Speed + math.random(-3, 3)
-                    bodyVelocity.Velocity = (target.Position - hrp.Position).Unit * jitterSpeed
+                    bodyVelocity.Velocity = (target.Position - hrp.Position).Unit
                     RunService.Heartbeat:Wait()
                 end
                 
