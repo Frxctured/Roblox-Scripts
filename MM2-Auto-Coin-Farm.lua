@@ -109,35 +109,43 @@ RunService.Heartbeat:Connect(function()
         return 
     end
 
-    local amIMurderer = (playerRoles[player.Name] and playerRoles[player.Name].Role == "Murderer")
+    -- Dynamic Role Detection (Checks Backpack/Character for weapons)
+    local function getRole(p)
+        if p.Backpack:FindFirstChild("Knife") or (p.Character and p.Character:FindFirstChild("Knife")) then
+            return "Murderer"
+        elseif p.Backpack:FindFirstChild("Gun") or (p.Character and p.Character:FindFirstChild("Gun")) then
+            return "Sheriff"
+        end
+        return "Innocent" 
+    end
+
+    local myRole = getRole(player)
+    local amIMurderer = (myRole == "Murderer")
 
     for _, p in pairs(Players:GetPlayers()) do
         if p == player or not p.Character then continue end
-        local roleData = playerRoles[p.Name]
+        
+        local pRole = getRole(p)
         local hl = p.Character:FindFirstChild("RoleHighlight") or Instance.new("Highlight", p.Character)
         hl.Name = "RoleHighlight"
         
-        if roleData then
-            if roleData.Role == "Murderer" then
-                hl.FillColor = Color3.fromRGB(255, 0, 0)
-                hl.FillTransparency = 0.5
-                hl.Enabled = true
-            elseif roleData.Role == "Sheriff" or roleData.Role == "Hero" then
-                hl.FillColor = Color3.fromRGB(0, 120, 255)
-                hl.FillTransparency = 0.5
-                hl.Enabled = true
-            elseif amIMurderer then
-                -- Highlight innocents as transparent white for Murderer
-                hl.FillColor = Color3.fromRGB(255, 255, 255)
-                hl.FillTransparency = 0.8 -- Slightly more transparent
-                hl.OutlineColor = Color3.fromRGB(255, 255, 255)
-                hl.OutlineTransparency = 0.5
-                hl.Enabled = true
-            else
-                hl.Enabled = false -- Hide ESP for regular innocents if you aren't Murd
-            end
+        if pRole == "Murderer" then
+            hl.FillColor = Color3.fromRGB(255, 0, 0)
+            hl.FillTransparency = 0.5
+            hl.Enabled = true
+        elseif pRole == "Sheriff" then
+            hl.FillColor = Color3.fromRGB(0, 120, 255)
+            hl.FillTransparency = 0.5
+            hl.Enabled = true
+        elseif amIMurderer then
+            -- Highlight innocents as transparent white for Murderer
+            hl.FillColor = Color3.fromRGB(255, 255, 255)
+            hl.FillTransparency = 0.8 
+            hl.OutlineColor = Color3.fromRGB(255, 255, 255)
+            hl.OutlineTransparency = 0.5
+            hl.Enabled = true
         else
-            hl.Enabled = false
+            hl.Enabled = false 
         end
     end
 
@@ -162,7 +170,7 @@ local GameplayRemotes = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("
 GameplayRemotes.RoundStart.OnClientEvent:Connect(function(_, roles) 
     playerRoles = roles 
     isInRound = true 
-    hasDied = false -- Reset death flag
+    hasDied = false
     collectedCoins = {}
     collectedCount = 0
 end)
@@ -218,7 +226,7 @@ task.spawn(function()
             if collectedCount >= currentMax and currentMax > 0 then
                 humanoid.Health = 0
                 collectedCount = 0
-                isInRound = false
+                hasDied = true
                 task.wait(2)
                 continue
             end
