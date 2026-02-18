@@ -1,27 +1,23 @@
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local TweenService = game:GetService("TweenService")
 
 local player = Players.LocalPlayer
 local character = player.Character or player.CharacterAdded:Wait()
 local hrp = character:WaitForChild("HumanoidRootPart")
 
--- CONFIGURATION
-getgenv().coinFarm = getgenv().coinFarm or false 
-local BASE_SPEED = 55
-local MIN_WAIT = 0.2
-local VELOCITY_THRESHOLD = 35
-local COIN_TYPE_TO_FARM = "Coin"
-local SAFETY_DISTANCE = 15 -- Radius to trigger hiding
-local HIDE_DEPTH = -50    -- Underground depth for safety
+-- STATE MANAGEMENT
+getgenv().Config = {
+    Farm = false,
+    ESP = true,
+    GunESP = true,
+    AutoHide = true,
+    Speed = 55,
+    SafetyDist = 18,
+    HideDepth = -50
+}
 
--- REMOTES
-local GameplayRemotes = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("Gameplay")
-local CoinCollectedEvent = GameplayRemotes:WaitForChild("CoinCollected")
-local RoundStartEvent = GameplayRemotes:WaitForChild("RoundStart")
-local RoundEndEvent = GameplayRemotes:WaitForChild("RoundEndFade")
-
-local bodyVelocity = nil
 local collectedCoins = {} 
 local collectedCount = 0
 local currentMax = 50 
@@ -29,215 +25,167 @@ local playerRoles = {}
 local isHiding = false
 local isInRound = false
 local lastHrpPos = hrp.Position
+local bodyVelocity = nil
 
---- ### 1. VISUALS (ESP) ### ---
+--- ### 1. THE MODERN UI ### ---
+local screenGui = Instance.new("ScreenGui", player.PlayerGui)
+screenGui.Name = "FrxcturedMM2"
+screenGui.ResetOnSpawn = false
+
+local main = Instance.new("Frame", screenGui)
+main.Size = UDim2.new(0, 350, 0, 250)
+main.Position = UDim2.new(0.5, -175, 0.4, -125)
+main.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+main.BorderSizePixel = 0
+Instance.new("UICorner", main).CornerRadius = UDim.new(0, 8)
+
+local title = Instance.new("TextLabel", main)
+title.Size = UDim2.new(1, 0, 0, 40)
+title.Text = "FRXCTURED'S MM2"
+title.TextColor3 = Color3.fromRGB(255, 255, 255)
+title.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+title.TextSize = 18
+title.Font = Enum.Font.GothamBold
+Instance.new("UICorner", title).CornerRadius = UDim.new(0, 8)
+
+local container = Instance.new("ScrollingFrame", main)
+container.Size = UDim2.new(1, -20, 1, -60)
+container.Position = UDim2.new(0, 10, 0, 50)
+container.BackgroundTransparency = 1
+container.CanvasSize = UDim2.new(0, 0, 1.2, 0)
+container.ScrollBarThickness = 2
+
+local layout = Instance.new("UIListLayout", container)
+layout.Padding = UDim.new(0, 8)
+
+local function createToggle(name, configKey)
+    local btn = Instance.new("TextButton", container)
+    btn.Size = UDim2.new(1, 0, 0, 35)
+    btn.BackgroundColor3 = getgenv().Config[configKey] and Color3.fromRGB(40, 150, 40) or Color3.fromRGB(150, 40, 40)
+    btn.Text = name .. ": " .. (getgenv().Config[configKey] and "ON" or "OFF")
+    btn.TextColor3 = Color3.white
+    btn.Font = Enum.Font.GothamMedium
+    Instance.new("UICorner", btn)
+
+    btn.MouseButton1Click:Connect(function()
+        getgenv().Config[configKey] = not getgenv().Config[configKey]
+        btn.BackgroundColor3 = getgenv().Config[configKey] and Color3.fromRGB(40, 150, 40) or Color3.fromRGB(150, 40, 40)
+        btn.Text = name .. ": " .. (getgenv().Config[configKey] and "ON" or "OFF")
+        if configKey == "ESP" and not getgenv().Config.ESP then clearHighlights() end
+    end)
+end
+
+createToggle("Coin Farm", "Farm")
+createToggle("Player ESP", "ESP")
+createToggle("Gun Highlight", "GunESP")
+createToggle("Auto Hide", "AutoHide")
+
+-- Dragging Logic
+local dragging, dragInput, dragStart, startPos
+main.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then dragging = true dragStart = input.Position startPos = main.Position end
+end)
+main.InputChanged:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseMovement then dragInput = input end
+end)
+game:GetService("UserInputService").InputChanged:Connect(function(input)
+    if input == dragInput and dragging then
+        local delta = input.Position - dragStart
+        main.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+    end
+end)
+game:GetService("UserInputService").InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then dragging = false end
+end)
+
+--- ### 2. CORE LOGIC (INTEGRATED) ### ---
+
 local function applyHighlights()
+    if not getgenv().Config.ESP then return end
     for name, data in pairs(playerRoles) do
         local targetPlayer = Players:FindFirstChild(name)
         if targetPlayer and targetPlayer.Character then
-            local old = targetPlayer.Character:FindFirstChild("RoleHighlight")
-            if old then old:Destroy() end
-
-            local highlight = Instance.new("Highlight")
-            highlight.Name = "RoleHighlight"
-            highlight.Parent = targetPlayer.Character
-            highlight.FillTransparency = 0.5
-            highlight.OutlineTransparency = 0
-            
-            if data.Role == "Murderer" then
-                highlight.FillColor = Color3.fromRGB(255, 0, 0)
-            elseif data.Role == "Sheriff" or data.Role == "Hero" then
-                highlight.FillColor = Color3.fromRGB(0, 0, 255)
-            else
-                highlight:Destroy()
+            if not targetPlayer.Character:FindFirstChild("RoleHighlight") then
+                local hl = Instance.new("Highlight", targetPlayer.Character)
+                hl.Name = "RoleHighlight"
+                hl.FillTransparency = 0.5
+                if data.Role == "Murderer" then hl.FillColor = Color3.fromRGB(255, 0, 0)
+                elseif data.Role == "Sheriff" or data.Role == "Hero" then hl.FillColor = Color3.fromRGB(0, 0, 255)
+                else hl:Destroy() end
             end
         end
     end
 end
 
-local function applyGunESP()
-    local gun = workspace:FindFirstChild("GunDrop")
-    if gun then
-        local handle = gun:FindFirstChild("Handle") or gun:FindFirstChildWhichIsA("BasePart")
-        if handle and not handle:FindFirstChild("GunHighlight") then
-            local highlight = Instance.new("Highlight")
-            highlight.Name = "GunHighlight"
-            highlight.Parent = handle
-            highlight.FillColor = Color3.fromRGB(255, 215, 0)
-            highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-        end
-    end
-end
-
-local function clearHighlights()
+function clearHighlights()
     for _, p in pairs(Players:GetPlayers()) do
-        if p.Character and p.Character:FindFirstChild("RoleHighlight") then
-            p.Character.RoleHighlight:Destroy()
-        end
+        if p.Character and p.Character:FindFirstChild("RoleHighlight") then p.Character.RoleHighlight:Destroy() end
     end
 end
 
---- ### 2. SERVER SYNC ### ---
-RoundStartEvent.OnClientEvent:Connect(function(timer, roles)
-    playerRoles = roles
-    applyHighlights()
-    isInRound = true
-    collectedCount = 0
-    collectedCoins = {}
-end)
-
-RoundEndEvent.OnClientEvent:Connect(function()
-    playerRoles = {}
-    clearHighlights()
-    isInRound = false
-    isHiding = false
-end)
-
-CoinCollectedEvent.OnClientEvent:Connect(function(cointype, current, max)
-    if cointype == COIN_TYPE_TO_FARM then
-        collectedCount = tonumber(current)
-        currentMax = tonumber(max)
-        updateGui()
-    end
-end)
+local GameplayRemotes = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("Gameplay")
+GameplayRemotes.RoundStart.OnClientEvent:Connect(function(_, roles) playerRoles = roles isInRound = true applyHighlights() end)
+GameplayRemotes.RoundEndFade.OnClientEvent:Connect(function() playerRoles = {} isInRound = false isHiding = false clearHighlights() end)
+GameplayRemotes.CoinCollected.OnClientEvent:Connect(function(_, cur, max) collectedCount = cur currentMax = max end)
 
 local function getMurderer()
     for name, data in pairs(playerRoles) do
         if data.Role == "Murderer" then
-            local mPlr = Players:FindFirstChild(name)
-            if mPlr and mPlr.Character and mPlr.Character:FindFirstChild("HumanoidRootPart") then
-                return mPlr.Character.HumanoidRootPart
-            end
+            local p = Players:FindFirstChild(name)
+            if p and p.Character and p.Character:FindFirstChild("HumanoidRootPart") then return p.Character.HumanoidRootPart end
         end
     end
     return nil
 end
 
---- ### 3. GUI & CHARACTER SETUP ### ---
-local screenGui = player.PlayerGui:FindFirstChild("PersistentFarmGui")
-if not screenGui then
-    screenGui = Instance.new("ScreenGui", player.PlayerGui)
-    screenGui.Name = "PersistentFarmGui"
-    screenGui.ResetOnSpawn = false
-    local btn = Instance.new("TextButton", screenGui)
-    btn.Name = "ToggleBtn"
-    btn.Size = UDim2.new(0, 200, 0, 50)
-    btn.Position = UDim2.new(0.5, -100, 0.1, 0)
-    btn.BackgroundColor3 = Color3.fromRGB(170, 0, 0)
-    btn.TextColor3 = Color3.fromRGB(255, 255, 255)
-    Instance.new("UICorner", btn)
-    btn.MouseButton1Click:Connect(function()
-        getgenv().coinFarm = not getgenv().coinFarm
-        btn.BackgroundColor3 = getgenv().coinFarm and Color3.fromRGB(0, 170, 0) or Color3.fromRGB(170, 0, 0)
-        updateGui()
-    end)
-end
-
-function updateGui()
-    local btn = screenGui:FindFirstChild("ToggleBtn")
-    if btn then
-        local status = isHiding and "HIDING" or (getgenv().coinFarm and "ON" or "OFF")
-        btn.Text = "Farm: " .. status .. " (" .. collectedCount .. "/" .. currentMax .. ")"
-    end
-end
-
-player.CharacterAdded:Connect(function(newChar)
-    character = newChar
-    hrp = character:WaitForChild("HumanoidRootPart")
-    collectedCount = 0
-    updateGui()
-end)
-
-RunService.Stepped:Connect(function()
-    if getgenv().coinFarm and character then
-        for _, part in ipairs(character:GetDescendants()) do
-            if part:IsA("BasePart") then part.CanCollide = false end
-        end
-    end
-end)
-
---- ### 4. ENGINE ### ---
-local function getNearestCoin()
-    local closestCoin = nil
-    local shortestDistance = math.huge
-    for _, child in ipairs(workspace:GetDescendants()) do
-        if child:IsA("BasePart") and child.Name == "Coin_Server" and not collectedCoins[child] then
-            local distance = (child.Position - hrp.Position).Magnitude
-            if distance < shortestDistance then
-                shortestDistance = distance
-                closestCoin = child
-            end
-        end
-    end
-    return closestCoin
-end
-
+--- ### 3. THE ENGINE ### ---
 task.spawn(function()
     while true do
-        if getgenv().coinFarm and isInRound and hrp then
-            applyGunESP()
-            
-            local murdererHRP = getMurderer()
-            local distToMurd = murdererHRP and (murdererHRP.Position - hrp.Position).Magnitude or math.huge
+        if getgenv().Config.Farm and isInRound and hrp then
+            local mHrp = getMurderer()
+            local dist = mHrp and (mHrp.Position - hrp.Position).Magnitude or math.huge
 
-            -- STEALTH LOGIC
-            if distToMurd < SAFETY_DISTANCE then
-                if not isHiding then
-                    lastHrpPos = hrp.Position
-                    isHiding = true
-                    updateGui()
-                end
-                bodyVelocity.Velocity = Vector3.zero
-                hrp.CFrame = CFrame.new(hrp.Position.X, HIDE_DEPTH, hrp.Position.Z)
-                task.wait(0.5)
-                continue
-            else
-                if isHiding then
-                    isHiding = false
-                    hrp.CFrame = CFrame.new(hrp.Position.X, lastHrpPos.Y, hrp.Position.Z)
-                    updateGui()
-                end
+            -- Hiding Logic
+            if getgenv().Config.AutoHide and dist < getgenv().Config.SafetyDist then
+                if not isHiding then lastHrpPos = hrp.Position isHiding = true end
+                hrp.CFrame = CFrame.new(hrp.Position.X, getgenv().Config.HideDepth, hrp.Position.Z)
+                task.wait(0.5) continue
+            elseif isHiding then
+                isHiding = false
+                hrp.CFrame = CFrame.new(hrp.Position.X, lastHrpPos.Y, hrp.Position.Z)
             end
 
-            -- AUTO-RESET
-            if collectedCount >= currentMax and currentMax > 0 then
-                collectedCount = 0
-                updateGui()
+            -- Reset Logic
+            if collectedCount >= currentMax then
                 if character:FindFirstChild("Humanoid") then character.Humanoid.Health = 0 end
-                isInRound = false
-                task.wait(5)
-                continue
+                isInRound = false task.wait(5) continue
             end
 
-            -- PHYSICS SETUP
+            -- Movement Logic
             if not bodyVelocity or bodyVelocity.Parent ~= hrp then
                 bodyVelocity = Instance.new("BodyVelocity", hrp)
                 bodyVelocity.MaxForce = Vector3.new(9e9, 9e9, 9e9)
-                character:WaitForChild("Humanoid").PlatformStand = true
+                character.Humanoid.PlatformStand = true
             end
 
-            -- MOVEMENT
-            local target = getNearestCoin()
-            if target and target.Parent then
-                local distance = (target.Position - hrp.Position).Magnitude
-                local adaptiveWait = math.clamp(distance / VELOCITY_THRESHOLD, MIN_WAIT, 3)
-                
-                bodyVelocity.Velocity = Vector3.zero
-                task.wait(adaptiveWait)
+            local target = nil
+            local shortest = math.huge
+            for _, v in pairs(workspace:GetDescendants()) do
+                if v.Name == "Coin_Server" and not collectedCoins[v] then
+                    local d = (v.Position - hrp.Position).Magnitude
+                    if d < shortest then shortest = d target = v end
+                end
+            end
 
-                while getgenv().coinFarm and target and target.Parent and (target.Position - hrp.Position).Magnitude > 0.5 do
-                    local m = getMurderer()
-                    if m and (m.Position - hrp.Position).Magnitude < SAFETY_DISTANCE then break end
-                    
-                    bodyVelocity.Velocity = (target.Position - hrp.Position).Unit * BASE_SPEED
+            if target then
+                task.wait(math.clamp(shortest/getgenv().Config.Speed, 0.2, 2))
+                while getgenv().Config.Farm and target and target.Parent and (target.Position-hrp.Position).Magnitude > 0.5 do
+                    if isHiding then break end
+                    bodyVelocity.Velocity = (target.Position - hrp.Position).Unit * getgenv().Config.Speed
                     RunService.Heartbeat:Wait()
                 end
-
-                if getgenv().coinFarm then
-                    bodyVelocity.Velocity = Vector3.zero
-                    collectedCoins[target] = tick()
-                    task.wait()
-                end
+                bodyVelocity.Velocity = Vector3.zero
+                collectedCoins[target] = true
             end
         else
             if bodyVelocity then bodyVelocity:Destroy() bodyVelocity = nil end
