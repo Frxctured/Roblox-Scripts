@@ -1,7 +1,6 @@
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local TweenService = game:GetService("TweenService")
 
 local player = Players.LocalPlayer
 local character = player.Character or player.CharacterAdded:Wait()
@@ -28,111 +27,100 @@ local isInRound = false
 local lastHrpPos = hrp.Position
 local bodyVelocity = nil
 
---- ### 1. THE MODERN UI ### ---
+--- ### 1. THE REBUILT UI ### ---
 local screenGui = Instance.new("ScreenGui", player.PlayerGui)
 screenGui.Name = "FrxcturedMM2"
 screenGui.ResetOnSpawn = false
 
 local main = Instance.new("Frame", screenGui)
-main.Size = UDim2.new(0, 350, 0, 300) -- Increased size for more toggles
-main.Position = UDim2.new(0.5, -175, 0.4, -125)
-main.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+main.Size = UDim2.new(0, 250, 0, 320)
+main.Position = UDim2.new(0.5, -125, 0.2, 0)
+main.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
 main.BorderSizePixel = 0
-Instance.new("UICorner", main).CornerRadius = UDim.new(0, 8)
+main.Active = true
+main.Draggable = true -- Built-in legacy dragging for simplicity
+Instance.new("UICorner", main)
 
 local title = Instance.new("TextLabel", main)
 title.Size = UDim2.new(1, 0, 0, 40)
 title.Text = "FRXCTURED'S MM2"
-title.TextColor3 = Color3.fromRGB(255, 255, 255)
-title.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
-title.TextSize = 18
+title.TextColor3 = Color3.white
+title.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
 title.Font = Enum.Font.GothamBold
-Instance.new("UICorner", title).CornerRadius = UDim.new(0, 8)
+title.TextSize = 14
+Instance.new("UICorner", title)
 
-local container = Instance.new("ScrollingFrame", main)
-container.Size = UDim2.new(1, -20, 1, -60)
-container.Position = UDim2.new(0, 10, 0, 50)
+local container = Instance.new("Frame", main)
+container.Size = UDim2.new(1, -20, 1, -50)
+container.Position = UDim2.new(0, 10, 0, 45)
 container.BackgroundTransparency = 1
-container.CanvasSize = UDim2.new(0, 0, 1.4, 0)
-container.ScrollBarThickness = 2
 
 local layout = Instance.new("UIListLayout", container)
-layout.Padding = UDim.new(0, 8)
+layout.Padding = UDim.new(0, 5)
+layout.HorizontalAlignment = Enum.HorizontalAlignment.Center
 
 local function createToggle(name, configKey)
     local btn = Instance.new("TextButton", container)
     btn.Size = UDim2.new(1, 0, 0, 35)
-    btn.BackgroundColor3 = getgenv().Config[configKey] and Color3.fromRGB(40, 150, 40) or Color3.fromRGB(150, 40, 40)
-    btn.Text = name .. ": " .. (getgenv().Config[configKey] and "ON" or "OFF")
-    btn.TextColor3 = Color3.white
     btn.Font = Enum.Font.GothamMedium
+    btn.TextSize = 12
+    btn.TextColor3 = Color3.white
     Instance.new("UICorner", btn)
+
+    local function updateBtn()
+        local enabled = getgenv().Config[configKey]
+        btn.Text = name .. ": " .. (enabled and "ON" or "OFF")
+        btn.BackgroundColor3 = enabled and Color3.fromRGB(60, 180, 60) or Color3.fromRGB(180, 60, 60)
+    end
 
     btn.MouseButton1Click:Connect(function()
         getgenv().Config[configKey] = not getgenv().Config[configKey]
-        btn.BackgroundColor3 = getgenv().Config[configKey] and Color3.fromRGB(40, 150, 40) or Color3.fromRGB(150, 40, 40)
-        btn.Text = name .. ": " .. (getgenv().Config[configKey] and "ON" or "OFF")
+        updateBtn()
         if configKey == "ESP" and not getgenv().Config.ESP then clearHighlights() end
     end)
+    
+    updateBtn()
 end
 
+-- Manually adding buttons to ensure they appear
 createToggle("Coin Farm", "Farm")
 createToggle("Role ESP", "ESP")
-createToggle("Innocents ESP", "SubtleESP")
+createToggle("Subtle Innocents", "SubtleESP")
 createToggle("Gun Highlight", "GunESP")
 createToggle("Auto Hide", "AutoHide")
 
--- Simple Minimize Button
-local miniBtn = Instance.new("TextButton", main)
-miniBtn.Size = UDim2.new(0, 30, 0, 30)
-miniBtn.Position = UDim2.new(1, -35, 0, 5)
-miniBtn.Text = "-"
-miniBtn.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
-miniBtn.TextColor3 = Color3.white
-Instance.new("UICorner", miniBtn)
+--- ### 2. CORE LOGIC ### ---
 
-miniBtn.MouseButton1Click:Connect(function()
-    container.Visible = not container.Visible
-    main.Size = container.Visible and UDim2.new(0, 350, 0, 300) or UDim2.new(0, 350, 0, 40)
-end)
-
---- ### 2. THE LOGIC ### ---
-
-local function clearHighlights()
+function clearHighlights()
     for _, p in pairs(Players:GetPlayers()) do
-        if p.Character and p.Character:FindFirstChild("RoleHighlight") then p.Character.RoleHighlight:Destroy() end
+        if p.Character and p.Character:FindFirstChild("RoleHighlight") then 
+            p.Character.RoleHighlight:Destroy() 
+        end
     end
 end
 
 local function applyHighlights()
     if not getgenv().Config.ESP then return end
-    
-    local amIMurderer = false
-    if playerRoles[player.Name] and playerRoles[player.Name].Role == "Murderer" then
-        amIMurderer = true
-    end
+    local amIMurderer = (playerRoles[player.Name] and playerRoles[player.Name].Role == "Murderer")
 
     for name, data in pairs(playerRoles) do
-        if name == player.Name then continue end -- Don't highlight self
-
+        if name == player.Name then continue end
         local targetPlayer = Players:FindFirstChild(name)
         if targetPlayer and targetPlayer.Character then
             local hl = targetPlayer.Character:FindFirstChild("RoleHighlight") or Instance.new("Highlight", targetPlayer.Character)
             hl.Name = "RoleHighlight"
+            hl.OutlineTransparency = 0
             
             if data.Role == "Murderer" then
                 hl.FillColor = Color3.fromRGB(255, 0, 0)
                 hl.FillTransparency = 0.5
-                hl.OutlineTransparency = 0
             elseif data.Role == "Sheriff" or data.Role == "Hero" then
-                hl.FillColor = Color3.fromRGB(0, 100, 255)
+                hl.FillColor = Color3.fromRGB(0, 120, 255)
                 hl.FillTransparency = 0.5
-                hl.OutlineTransparency = 0
             elseif amIMurderer and getgenv().Config.SubtleESP then
-                -- Subtle ESP for Innocents only if you are Murderer
-                hl.FillTransparency = 1 -- Only outline
-                hl.OutlineColor = Color3.fromRGB(255, 255, 255)
-                hl.OutlineTransparency = 0.7
+                hl.FillTransparency = 1 
+                hl.OutlineColor = Color3.white
+                hl.OutlineTransparency = 0.6
             else
                 if not amIMurderer then hl:Destroy() end
             end
@@ -153,13 +141,12 @@ GameplayRemotes.RoundEndFade.OnClientEvent:Connect(function()
     clearHighlights() 
 end)
 GameplayRemotes.CoinCollected.OnClientEvent:Connect(function(_, cur, max) 
-    collectedCount = cur 
-    currentMax = max 
+    collectedCount = tonumber(cur) or 0
+    currentMax = tonumber(max) or 50
 end)
 
 local function getMurderer()
     for name, data in pairs(playerRoles) do
-        -- BUG FIX: Check if the murderer found is NOT the LocalPlayer
         if data.Role == "Murderer" and name ~= player.Name then
             local p = Players:FindFirstChild(name)
             if p and p.Character and p.Character:FindFirstChild("HumanoidRootPart") then 
@@ -173,33 +160,35 @@ end
 --- ### 3. THE ENGINE ### ---
 task.spawn(function()
     while true do
+        -- Only run if toggled AND in a round
         if getgenv().Config.Farm and isInRound and hrp then
             local mHrp = getMurderer()
             local dist = mHrp and (mHrp.Position - hrp.Position).Magnitude or math.huge
 
-            -- Hiding Logic (Now ignores self)
+            -- Auto-Hide Logic
             if getgenv().Config.AutoHide and dist < getgenv().Config.SafetyDist then
                 if not isHiding then lastHrpPos = hrp.Position isHiding = true end
                 hrp.CFrame = CFrame.new(hrp.Position.X, getgenv().Config.HideDepth, hrp.Position.Z)
                 task.wait(0.5) continue
             elseif isHiding then
                 isHiding = false
-                hrp.CFrame = CFrame.new(hrp.Position.X, lastHrpPos.Y, hrp.Position.Z)
+                hrp.CFrame = CFrame.new(hrp.Position.X, lastHrpPos.Y + 2, hrp.Position.Z)
             end
 
-            -- Reset Logic
-            if collectedCount >= currentMax then
+            -- Reset logic
+            if collectedCount >= currentMax and currentMax > 0 then
                 if character:FindFirstChild("Humanoid") then character.Humanoid.Health = 0 end
                 isInRound = false task.wait(5) continue
             end
 
-            -- Movement Logic
+            -- Physics
             if not bodyVelocity or bodyVelocity.Parent ~= hrp then
                 bodyVelocity = Instance.new("BodyVelocity", hrp)
                 bodyVelocity.MaxForce = Vector3.new(9e9, 9e9, 9e9)
-                character.Humanoid.PlatformStand = true
+                if character:FindFirstChild("Humanoid") then character.Humanoid.PlatformStand = true end
             end
 
+            -- Find Coins
             local target = nil
             local shortest = math.huge
             for _, v in pairs(workspace:GetDescendants()) do
@@ -210,17 +199,18 @@ task.spawn(function()
             end
 
             if target then
-                task.wait(math.clamp(shortest/getgenv().Config.Speed, 0.2, 2))
+                task.wait(0.2) -- Small delay between coins
                 while getgenv().Config.Farm and target and target.Parent and (target.Position-hrp.Position).Magnitude > 0.5 do
-                    if isHiding then break end
+                    if isHiding or not isInRound then break end
                     bodyVelocity.Velocity = (target.Position - hrp.Position).Unit * getgenv().Config.Speed
                     RunService.Heartbeat:Wait()
                 end
-                bodyVelocity.Velocity = Vector3.zero
+                if bodyVelocity then bodyVelocity.Velocity = Vector3.zero end
                 collectedCoins[target] = true
             end
         else
             if bodyVelocity then bodyVelocity:Destroy() bodyVelocity = nil end
+            if character:FindFirstChild("Humanoid") then character.Humanoid.PlatformStand = false end
         end
         RunService.Heartbeat:Wait()
     end
