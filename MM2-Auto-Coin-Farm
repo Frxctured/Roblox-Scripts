@@ -4,9 +4,7 @@ local Window = Rayfield:CreateWindow({
    Name = "FRXCTURED'S MM2",
    LoadingTitle = "FrxcturedMM2 Suite",
    LoadingSubtitle = "by Gemini",
-   ConfigurationSaving = {
-      Enabled = false
-   },
+   ConfigurationSaving = { Enabled = false },
    KeySystem = false
 })
 
@@ -62,13 +60,19 @@ VisualsTab:CreateToggle({
    Callback = function(Value) getgenv().Config.ESP = Value end,
 })
 
-VisualsTab:CreateToggle({
-   Name = "Innocent ESP (As Murd)",
-   CurrentValue = true,
-   Callback = function(Value) getgenv().Config.SubtleESP = Value end,
-})
+--- ### 1. THE NOCLIP ENGINE (WALL FIX) ### ---
+-- This must run every frame to prevent physics from pushing you back
+RunService.Stepped:Connect(function()
+    if getgenv().Config.Farm and character then
+        for _, part in ipairs(character:GetDescendants()) do
+            if part:IsA("BasePart") then
+                part.CanCollide = false
+            end
+        end
+    end
+end)
 
---- ### ENGINE LOGIC ### ---
+--- ### 2. CORE LOGIC ### ---
 
 local function clearHighlights()
     for _, p in pairs(Players:GetPlayers()) do
@@ -110,23 +114,37 @@ end
 
 task.spawn(function()
     while true do
+        character = player.Character
+        hrp = character and character:FindFirstChild("HumanoidRootPart")
+        
         if getgenv().Config.Farm and isInRound and hrp then
             local mHrp = getMurderer()
             local dist = mHrp and (mHrp.Position - hrp.Position).Magnitude or math.huge
+            
+            -- Auto-Hide
             if getgenv().Config.AutoHide and dist < getgenv().Config.SafetyDist then
                 if not isHiding then lastHrpPos = hrp.Position isHiding = true end
                 hrp.CFrame = CFrame.new(hrp.Position.X, getgenv().Config.HideDepth, hrp.Position.Z)
                 task.wait(0.5) continue
-            elseif isHiding then isHiding = false hrp.CFrame = CFrame.new(hrp.Position.X, lastHrpPos.Y + 2, hrp.Position.Z) end
+            elseif isHiding then 
+                isHiding = false 
+                hrp.CFrame = CFrame.new(hrp.Position.X, lastHrpPos.Y + 2, hrp.Position.Z) 
+            end
+
+            -- Reset/Full Bag
             if collectedCount >= currentMax and currentMax > 0 then
                 if character:FindFirstChild("Humanoid") then character.Humanoid.Health = 0 end
                 isInRound = false task.wait(5) continue
             end
+
+            -- BodyVelocity Management
             if not bodyVelocity or bodyVelocity.Parent ~= hrp then
+                if bodyVelocity then bodyVelocity:Destroy() end
                 bodyVelocity = Instance.new("BodyVelocity", hrp)
                 bodyVelocity.MaxForce = Vector3.new(9e9, 9e9, 9e9)
                 if character:FindFirstChild("Humanoid") then character.Humanoid.PlatformStand = true end
             end
+
             local target, shortest = nil, math.huge
             for _, v in pairs(workspace:GetDescendants()) do
                 if v.Name == "Coin_Server" and not collectedCoins[v] then
@@ -134,6 +152,7 @@ task.spawn(function()
                     if d < shortest then shortest = d target = v end
                 end
             end
+
             if target then
                 task.wait(0.1)
                 while getgenv().Config.Farm and target and target.Parent and (target.Position-hrp.Position).Magnitude > 0.5 do
@@ -146,6 +165,7 @@ task.spawn(function()
             end
         else
             if bodyVelocity then bodyVelocity:Destroy() bodyVelocity = nil end
+            if character and character:FindFirstChild("Humanoid") then character.Humanoid.PlatformStand = false end
         end
         RunService.Heartbeat:Wait()
     end
