@@ -33,6 +33,7 @@ local hrp = character:WaitForChild("HumanoidRootPart")
 local playerRoles = {}
 local collectedCoins = {}
 local isInRound = false
+local hasDied = false -- New flag to track death
 local collectedCount = 0
 local currentMax = 50 
 local bodyVelocity = nil
@@ -161,6 +162,7 @@ local GameplayRemotes = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("
 GameplayRemotes.RoundStart.OnClientEvent:Connect(function(_, roles) 
     playerRoles = roles 
     isInRound = true 
+    hasDied = false -- Reset death flag
     collectedCoins = {}
     collectedCount = 0
 end)
@@ -195,7 +197,7 @@ task.spawn(function()
         local humanoid = character and character:FindFirstChild("Humanoid")
         
         -- ### STATUS UPDATE LOGIC ### --
-        if not getgenv().Config.Farm then
+-        if not getgenv().Config.Farm then
             StatusLabel:Set("Status: Farm Disabled")
         elseif not isInRound then
             StatusLabel:Set("Status: Waiting for Round...")
@@ -205,7 +207,12 @@ task.spawn(function()
             StatusLabel:Set("Status: Farming ("..collectedCount.."/"..currentMax..")")
         end
 
-        if getgenv().Config.Farm and isInRound and hrp and humanoid and humanoid.Health > 0 then
+        -- Check for death to stop farming permanently for this round
+        if isInRound and humanoid and humanoid.Health <= 0 then
+            hasDied = true
+        end
+
+        if getgenv().Config.Farm and isInRound and not hasDied and hrp and humanoid and humanoid.Health > 0 then
             
             -- AGGRESSIVE RESET LOGIC
             if collectedCount >= currentMax and currentMax > 0 then
