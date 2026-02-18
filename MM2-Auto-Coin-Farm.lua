@@ -14,13 +14,13 @@ getgenv().Config = {
     Farm = {
         Active = false,
         Speed = 50,
-        MinWait = 0.2
+        MinWait = 0.2,
     },
     ESP = {
         Murderer = false,
         Sheriff = false,
         Innocent = false,
-        Gun = false
+        Gun = false,
     },
 }
 
@@ -53,7 +53,7 @@ local StatusLabel = MainTab:CreateLabel("Status: Initializing...")
 
 MainTab:CreateToggle({
     Name = "Coin Farm",
-    CurrentValue = getgenv().Config.Farm.Active,
+    CurrentValue = false,
     Callback = function(Value) getgenv().Config.Farm.Active = Value end,
 })
 
@@ -62,7 +62,7 @@ MainTab:CreateSlider({
     Range = {25, 85},
     Increment = 1,
     Suffix = " studs/s",
-    CurrentValue = getgenv().Config.Farm.Speed,
+    CurrentValue = 50,
     Callback = function(Value) getgenv().Config.Farm.Speed = Value end,
 })
 
@@ -71,32 +71,32 @@ MainTab:CreateSlider({
 
 ESPTab:CreateToggle({
     Name = "Show Murderer",
-    CurrentValue = true,
+    CurrentValue = false,
     Callback = function(Value) getgenv().Config.ESP.Murderer = Value end,
 })
 
 ESPTab:CreateToggle({
     Name = "Show Sheriff",
-    CurrentValue = true,
+    CurrentValue = false,
     Callback = function(Value) getgenv().Config.ESP.Sheriff = Value end,
 })
 
 ESPTab:CreateToggle({
     Name = "Show Innocents (only as Murderer)",
-    CurrentValue = true,
+    CurrentValue = false,
     Callback = function(Value) getgenv().Config.ESP.Sheriff = Value end,
 })
 
 ESPTab:CreateToggle({
     Name = "Show Gun Drop",
-    CurrentValue = true,
+    CurrentValue = false,
     Callback = function(Value) getgenv().Config.ESP.Gun = Value end,
 })
 
 
 -- ## OTHER TAB ## --
 
-MainTab:CreateButton({
+OtherTab:CreateButton({
     Name = "Server Hop",
     Callback = function()
         local Servers = game.HttpService:JSONDecode(game:HttpGet("https://games.roblox.com/v1/games/"..game.PlaceId.."/servers/Public?sortOrder=Desc&limit=100"))
