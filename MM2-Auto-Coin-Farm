@@ -9,50 +9,70 @@ local hrp = character:WaitForChild("HumanoidRootPart")
 -- CONFIGURATION
 getgenv().coinFarm = getgenv().coinFarm or false 
 local BASE_SPEED = 55
-local MIN_WAIT = 0.25
+local MIN_WAIT = 0.2
 local VELOCITY_THRESHOLD = 35
 local COIN_TYPE_TO_FARM = "Coin"
+local SAFETY_DISTANCE = 45 -- Radius to trigger hiding
+local HIDE_DEPTH = -50     -- How far underground to go
 
--- REMOTE EVENT PATH (From the MM2 script)
-local CoinCollectedEvent = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("Gameplay"):WaitForChild("CoinCollected")
+-- REMOTES
+local GameplayRemotes = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("Gameplay")
+local CoinCollectedEvent = GameplayRemotes:WaitForChild("CoinCollected")
+local RoundStartEvent = GameplayRemotes:WaitForChild("RoundStart")
+local RoundEndEvent = GameplayRemotes:WaitForChild("RoundEndFade")
 
 local bodyVelocity = nil
 local collectedCoins = {} 
 local collectedCount = 0
-local currentMax = 50 -- Default, will update automatically
+local currentMax = 50 
+local playerRoles = {}
+local isHiding = false
 
---- ### 1. PERSISTENT GUI ### ---
-local screenGui = player.PlayerGui:FindFirstChild("PersistentFarmGui")
-if not screenGui then
-    screenGui = Instance.new("ScreenGui", player.PlayerGui)
-    screenGui.Name = "PersistentFarmGui"
-    screenGui.ResetOnSpawn = false
-    
-    local btn = Instance.new("TextButton", screenGui)
-    btn.Name = "ToggleBtn"
-    btn.Size = UDim2.new(0, 200, 0, 50)
-    btn.Position = UDim2.new(0.5, -100, 0.1, 0)
-    btn.Text = "Farm: OFF (Waiting...)"
-    btn.BackgroundColor3 = Color3.fromRGB(170, 0, 0)
-    btn.TextColor3 = Color3.fromRGB(255, 255, 255)
-    Instance.new("UICorner", btn)
+--- ### 1. HIGHLIGHT LOGIC ### ---
+local function applyHighlights()
+    for name, data in pairs(playerRoles) do
+        local targetPlayer = Players:FindFirstChild(name)
+        if targetPlayer and targetPlayer.Character then
+            local old = targetPlayer.Character:FindFirstChild("RoleHighlight")
+            if old then old:Destroy() end
 
-    btn.MouseButton1Click:Connect(function()
-        getgenv().coinFarm = not getgenv().coinFarm
-        btn.BackgroundColor3 = getgenv().coinFarm and Color3.fromRGB(0, 170, 0) or Color3.fromRGB(170, 0, 0)
-        updateGui()
-    end)
-end
-
-local function updateGui()
-    local btn = screenGui:FindFirstChild("ToggleBtn")
-    if btn then
-        btn.Text = (getgenv().coinFarm and "Farm: ON " or "Farm: OFF ") .. "(" .. collectedCount .. "/" .. currentMax .. ")"
+            local highlight = Instance.new("Highlight")
+            highlight.Name = "RoleHighlight"
+            highlight.Parent = targetPlayer.Character
+            highlight.FillTransparency = 0.5
+            highlight.OutlineTransparency = 0
+            
+            if data.Role == "Murderer" then
+                highlight.FillColor = Color3.fromRGB(255, 0, 0)
+            elseif data.Role == "Sheriff" or data.Role == "Hero" then
+                highlight.FillColor = Color3.fromRGB(0, 0, 255)
+            else
+                highlight:Destroy()
+            end
+        end
     end
 end
 
---- ### 2. SERVER SYNC LOGIC ### ---
--- This listens to the game server to update your counts
+local function clearHighlights()
+    for _, p in pairs(Players:GetPlayers()) do
+        if p.Character and p.Character:FindFirstChild("RoleHighlight") then
+            p.Character.RoleHighlight:Destroy()
+        end
+    end
+end
+
+--- ### 2. SERVER SYNC ### ---
+RoundStartEvent.OnClientEvent:Connect(function(timer, roles)
+    playerRoles = roles
+    applyHighlights()
+end)
+
+RoundEndEvent.OnClientEvent:Connect(function()
+    playerRoles = {}
+    clearHighlights()
+    isHiding = false
+end)
+
 CoinCollectedEvent.OnClientEvent:Connect(function(cointype, current, max)
     if cointype == COIN_TYPE_TO_FARM then
         collectedCount = tonumber(current)
@@ -61,15 +81,53 @@ CoinCollectedEvent.OnClientEvent:Connect(function(cointype, current, max)
     end
 end)
 
-local function setupCharacter(newChar)
+local function getMurderer()
+    for name, data in pairs(playerRoles) do
+        if data.Role == "Murderer" then
+            local mPlr = Players:FindFirstChild(name)
+            if mPlr and mPlr.Character and mPlr.Character:FindFirstChild("HumanoidRootPart") then
+                return mPlr.Character.HumanoidRootPart
+            end
+        end
+    end
+    return nil
+end
+
+--- ### 3. GUI & SETUP ### ---
+local screenGui = player.PlayerGui:FindFirstChild("PersistentFarmGui")
+if not screenGui then
+    screenGui = Instance.new("ScreenGui", player.PlayerGui)
+    screenGui.Name = "PersistentFarmGui"
+    screenGui.ResetOnSpawn = false
+    local btn = Instance.new("TextButton", screenGui)
+    btn.Name = "ToggleBtn"
+    btn.Size = UDim2.new(0, 200, 0, 50)
+    btn.Position = UDim2.new(0.5, -100, 0.1, 0)
+    btn.BackgroundColor3 = Color3.fromRGB(170, 0, 0)
+    btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    Instance.new("UICorner", btn)
+    btn.MouseButton1Click:Connect(function()
+        getgenv().coinFarm = not getgenv().coinFarm
+        btn.BackgroundColor3 = getgenv().coinFarm and Color3.fromRGB(0, 170, 0) or Color3.fromRGB(170, 0, 0)
+        updateGui()
+    end)
+end
+
+function updateGui()
+    local btn = screenGui:FindFirstChild("ToggleBtn")
+    if btn then
+        local status = isHiding and "HIDING" or (getgenv().coinFarm and "ON" or "OFF")
+        btn.Text = "Farm: " .. status .. " (" .. collectedCount .. "/" .. currentMax .. ")"
+    end
+end
+
+player.CharacterAdded:Connect(function(newChar)
     character = newChar
     hrp = character:WaitForChild("HumanoidRootPart")
-    collectedCount = 0 -- Reset local count on spawn
+    collectedCount = 0
     updateGui()
-end
-player.CharacterAdded:Connect(setupCharacter)
+end)
 
---- ### 3. SEARCH & NOCLIP ### ---
 RunService.Stepped:Connect(function()
     if getgenv().coinFarm and character then
         for _, part in ipairs(character:GetDescendants()) do
@@ -78,11 +136,11 @@ RunService.Stepped:Connect(function()
     end
 end)
 
+--- ### 4. ENGINE ### ---
 local function getNearestCoin()
     local closestCoin = nil
     local shortestDistance = math.huge
     for _, child in ipairs(workspace:GetDescendants()) do
-        -- Check if it's the right object and if we haven't targeted it recently
         if child:IsA("BasePart") and child.Name == "Coin_Server" and not collectedCoins[child] then
             local distance = (child.Position - hrp.Position).Magnitude
             if distance < shortestDistance then
@@ -94,18 +152,37 @@ local function getNearestCoin()
     return closestCoin
 end
 
---- ### 4. ENGINE ### ---
 task.spawn(function()
     while true do
         if getgenv().coinFarm and hrp then
-            -- AUTO-RESET: Check if bag is full based on Server Data
+            local murdererHRP = getMurderer()
+            local distToMurd = murdererHRP and (murdererHRP.Position - hrp.Position).Magnitude or math.huge
+
+            -- STEALTH LOGIC: Hide underground if murderer is close
+            if distToMurd < SAFETY_DISTANCE then
+                if not isHiding then
+                    isHiding = true
+                    updateGui()
+                end
+                bodyVelocity.Velocity = Vector3.new(0, 0, 0)
+                hrp.CFrame = CFrame.new(hrp.Position.X, HIDE_DEPTH, hrp.Position.Z)
+                task.wait(0.5)
+                continue
+            else
+                if isHiding then
+                    isHiding = false
+                    -- Pop back up to a reasonable height before resuming
+                    hrp.CFrame = CFrame.new(hrp.Position.X, 10, hrp.Position.Z)
+                    updateGui()
+                end
+            end
+
+            -- Auto-Reset
             if collectedCount >= currentMax and currentMax > 0 then
                 collectedCount = 0
                 updateGui()
-                if character:FindFirstChild("Humanoid") then 
-                    character.Humanoid.Health = 0 
-                end
-                task.wait(5) -- Wait for respawn
+                if character:FindFirstChild("Humanoid") then character.Humanoid.Health = 0 end
+                task.wait(5)
                 continue
             end
 
@@ -117,31 +194,29 @@ task.spawn(function()
 
             local target = getNearestCoin()
             if target and target.Parent then
-                local distanceToNext = (target.Position - hrp.Position).Magnitude
-                local adaptiveWait = math.clamp(distanceToNext / VELOCITY_THRESHOLD, MIN_WAIT, 3)
+                local distance = (target.Position - hrp.Position).Magnitude
+                local adaptiveWait = math.clamp(distance / VELOCITY_THRESHOLD, MIN_WAIT, 3)
                 
                 bodyVelocity.Velocity = Vector3.zero
                 task.wait(adaptiveWait)
 
-                -- Fly to Target
                 while getgenv().coinFarm and target and target.Parent and (target.Position - hrp.Position).Magnitude > 0.5 do
+                    -- Re-check murderer during flight
+                    local m = getMurderer()
+                    if m and (m.Position - hrp.Position).Magnitude < SAFETY_DISTANCE then break end
+                    
                     bodyVelocity.Velocity = (target.Position - hrp.Position).Unit * BASE_SPEED
                     RunService.Heartbeat:Wait()
                 end
 
                 if getgenv().coinFarm then
                     bodyVelocity.Velocity = Vector3.zero
-                    collectedCoins[target] = tick() -- Blacklist target so we don't loop on it
-                    task.wait(0.3) -- Wait for the RemoteEvent to fire and update our count
+                    collectedCoins[target] = tick()
+                    task.wait()
                 end
-            else
-                bodyVelocity.Velocity = Vector3.zero
             end
         else
-            if bodyVelocity then 
-                bodyVelocity:Destroy() bodyVelocity = nil 
-                if character:FindFirstChild("Humanoid") then character.Humanoid.PlatformStand = false end
-            end
+            if bodyVelocity then bodyVelocity:Destroy() bodyVelocity = nil end
         end
         RunService.Heartbeat:Wait()
     end
