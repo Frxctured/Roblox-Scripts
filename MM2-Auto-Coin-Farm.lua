@@ -196,6 +196,7 @@ task.spawn(function()
             end
 
             if collectedCount >= currentMax and currentMax > 0 then
+                collectedCount = 0
                 if character:FindFirstChild("Humanoid") then character.Humanoid.Health = 0 end
                 isInRound = false task.wait(5) continue
             end
