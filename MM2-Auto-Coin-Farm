@@ -6,7 +6,7 @@ local player = Players.LocalPlayer
 local character = player.Character or player.CharacterAdded:Wait()
 local hrp = character:WaitForChild("HumanoidRootPart")
 
--- STATE MANAGEMENT
+-- CONFIG
 getgenv().Config = {
     Farm = false,
     ESP = true,
@@ -27,68 +27,106 @@ local isInRound = false
 local lastHrpPos = hrp.Position
 local bodyVelocity = nil
 
---- ### 1. THE FRXCTURED UI ### ---
+--- ### 1. THE BRUTE-FORCE UI ### ---
 local screenGui = Instance.new("ScreenGui", player.PlayerGui)
-screenGui.Name = "FrxcturedMM2_Suite"
+screenGui.Name = "FrxcturedMM2"
 screenGui.ResetOnSpawn = false
 
 local main = Instance.new("Frame", screenGui)
-main.Size = UDim2.new(0, 220, 0, 270)
-main.Position = UDim2.new(0.5, -110, 0.3, 0)
+main.Size = UDim2.new(0, 200, 0, 280)
+main.Position = UDim2.new(0.5, -100, 0.3, 0)
 main.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-main.BorderSizePixel = 0
 main.Active = true
 main.Draggable = true
-Instance.new("UICorner", main)
 
 local title = Instance.new("TextLabel", main)
-title.Size = UDim2.new(1, 0, 0, 35)
-title.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+title.Size = UDim2.new(1, 0, 0, 30)
+title.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
 title.Text = "FRXCTURED'S MM2"
-title.TextColor3 = Color3.fromRGB(255, 255, 255)
-title.Font = Enum.Font.GothamBold
-title.TextSize = 13
-Instance.new("UICorner", title)
+title.TextColor3 = Color3.white
+title.TextSize = 14
+title.Font = Enum.Font.SourceSansBold
 
-local function createBtn(text, configKey, yPos)
-    local btn = Instance.new("TextButton", main)
-    btn.Size = UDim2.new(0, 200, 0, 35)
-    btn.Position = UDim2.new(0, 10, 0, yPos)
-    btn.Font = Enum.Font.GothamMedium
-    btn.TextSize = 11
-    btn.TextColor3 = Color3.white
-    btn.BorderSizePixel = 0
-    Instance.new("UICorner", btn)
-    
-    local function update()
-        local val = getgenv().Config[configKey]
-        btn.Text = text .. ": " .. (val and "ON" or "OFF")
-        btn.BackgroundColor3 = val and Color3.fromRGB(45, 120, 45) or Color3.fromRGB(120, 45, 45)
-    end
-    
-    btn.MouseButton1Click:Connect(function()
-        getgenv().Config[configKey] = not getgenv().Config[configKey]
-        update()
-        if configKey == "ESP" and not getgenv().Config.ESP then
-             for _, p in pairs(Players:GetPlayers()) do
-                if p.Character and p.Character:FindFirstChild("RoleHighlight") then p.Character.RoleHighlight:Destroy() end
-             end
-        end
-    end)
-    update()
-end
+-- BUTTON 1: FARM
+local btn1 = Instance.new("TextButton", main)
+btn1.Size = UDim2.new(0, 180, 0, 40)
+btn1.Position = UDim2.new(0, 10, 0, 40)
+btn1.BackgroundColor3 = Color3.fromRGB(120, 40, 40)
+btn1.Text = "Coin Farm: OFF"
+btn1.TextColor3 = Color3.white
+btn1.Font = Enum.Font.SourceSans
+btn1.MouseButton1Click:Connect(function()
+    getgenv().Config.Farm = not getgenv().Config.Farm
+    btn1.Text = "Coin Farm: " .. (getgenv().Config.Farm and "ON" or "OFF")
+    btn1.BackgroundColor3 = getgenv().Config.Farm and Color3.fromRGB(40, 120, 40) or Color3.fromRGB(120, 40, 40)
+end)
 
--- Absolute Positioning for Buttons
-createBtn("Coin Farm", "Farm", 45)
-createBtn("Role ESP", "ESP", 90)
-createBtn("Innocent ESP", "SubtleESP", 135)
-createBtn("Gun Highlight", "GunESP", 180)
-createBtn("Auto Hide", "AutoHide", 225)
+-- BUTTON 2: ROLE ESP
+local btn2 = Instance.new("TextButton", main)
+btn2.Size = UDim2.new(0, 180, 0, 40)
+btn2.Position = UDim2.new(0, 10, 0, 85)
+btn2.BackgroundColor3 = Color3.fromRGB(40, 120, 40)
+btn2.Text = "Role ESP: ON"
+btn2.TextColor3 = Color3.white
+btn2.Font = Enum.Font.SourceSans
+btn2.MouseButton1Click:Connect(function()
+    getgenv().Config.ESP = not getgenv().Config.ESP
+    btn2.Text = "Role ESP: " .. (getgenv().Config.ESP and "ON" or "OFF")
+    btn2.BackgroundColor3 = getgenv().Config.ESP and Color3.fromRGB(40, 120, 40) or Color3.fromRGB(120, 40, 40)
+end)
+
+-- BUTTON 3: SUBTLE ESP
+local btn3 = Instance.new("TextButton", main)
+btn3.Size = UDim2.new(0, 180, 0, 40)
+btn3.Position = UDim2.new(0, 10, 0, 130)
+btn3.BackgroundColor3 = Color3.fromRGB(40, 120, 40)
+btn3.Text = "Innocent ESP: ON"
+btn3.TextColor3 = Color3.white
+btn3.Font = Enum.Font.SourceSans
+btn3.MouseButton1Click:Connect(function()
+    getgenv().Config.SubtleESP = not getgenv().Config.SubtleESP
+    btn3.Text = "Innocent ESP: " .. (getgenv().Config.SubtleESP and "ON" or "OFF")
+    btn3.BackgroundColor3 = getgenv().Config.SubtleESP and Color3.fromRGB(40, 120, 40) or Color3.fromRGB(120, 40, 40)
+end)
+
+-- BUTTON 4: GUN HIGHLIGHT
+local btn4 = Instance.new("TextButton", main)
+btn4.Size = UDim2.new(0, 180, 0, 40)
+btn4.Position = UDim2.new(0, 10, 0, 175)
+btn4.BackgroundColor3 = Color3.fromRGB(40, 120, 40)
+btn4.Text = "Gun ESP: ON"
+btn4.TextColor3 = Color3.white
+btn4.Font = Enum.Font.SourceSans
+btn4.MouseButton1Click:Connect(function()
+    getgenv().Config.GunESP = not getgenv().Config.GunESP
+    btn4.Text = "Gun ESP: " .. (getgenv().Config.GunESP and "ON" or "OFF")
+    btn4.BackgroundColor3 = getgenv().Config.GunESP and Color3.fromRGB(40, 120, 40) or Color3.fromRGB(120, 40, 40)
+end)
+
+-- BUTTON 5: AUTO HIDE
+local btn5 = Instance.new("TextButton", main)
+btn5.Size = UDim2.new(0, 180, 0, 40)
+btn5.Position = UDim2.new(0, 10, 0, 220)
+btn5.BackgroundColor3 = Color3.fromRGB(40, 120, 40)
+btn5.Text = "Auto Hide: ON"
+btn5.TextColor3 = Color3.white
+btn5.Font = Enum.Font.SourceSans
+btn5.MouseButton1Click:Connect(function()
+    getgenv().Config.AutoHide = not getgenv().Config.AutoHide
+    btn5.Text = "Auto Hide: " .. (getgenv().Config.AutoHide and "ON" or "OFF")
+    btn5.BackgroundColor3 = getgenv().Config.AutoHide and Color3.fromRGB(40, 120, 40) or Color3.fromRGB(120, 40, 40)
+end)
 
 --- ### 2. ENGINE LOGIC ### ---
 
+local function clearHighlights()
+    for _, p in pairs(Players:GetPlayers()) do
+        if p.Character and p.Character:FindFirstChild("RoleHighlight") then p.Character.RoleHighlight:Destroy() end
+    end
+end
+
 local function applyHighlights()
-    if not getgenv().Config.ESP then return end
+    if not getgenv().Config.ESP then clearHighlights() return end
     local amIMurderer = (playerRoles[player.Name] and playerRoles[player.Name].Role == "Murderer")
 
     for name, data in pairs(playerRoles) do
@@ -97,7 +135,6 @@ local function applyHighlights()
         if targetPlayer and targetPlayer.Character then
             local hl = targetPlayer.Character:FindFirstChild("RoleHighlight") or Instance.new("Highlight", targetPlayer.Character)
             hl.Name = "RoleHighlight"
-            hl.OutlineTransparency = 0
             
             if data.Role == "Murderer" then
                 hl.FillColor = Color3.fromRGB(255, 0, 0)
@@ -121,18 +158,13 @@ GameplayRemotes.RoundStart.OnClientEvent:Connect(function(_, roles)
     playerRoles = roles 
     isInRound = true 
     applyHighlights() 
-    print("FrxcturedMM2: Round Start Detected")
 end)
-
 GameplayRemotes.RoundEndFade.OnClientEvent:Connect(function() 
     playerRoles = {} 
     isInRound = false 
     isHiding = false 
-    for _, p in pairs(Players:GetPlayers()) do
-        if p.Character and p.Character:FindFirstChild("RoleHighlight") then p.Character.RoleHighlight:Destroy() end
-    end
+    clearHighlights() 
 end)
-
 GameplayRemotes.CoinCollected.OnClientEvent:Connect(function(_, cur, max) 
     collectedCount = tonumber(cur) or 0
     currentMax = tonumber(max) or 50
@@ -154,7 +186,6 @@ task.spawn(function()
             local mHrp = getMurderer()
             local dist = mHrp and (mHrp.Position - hrp.Position).Magnitude or math.huge
 
-            -- Auto-Hide logic
             if getgenv().Config.AutoHide and dist < getgenv().Config.SafetyDist then
                 if not isHiding then lastHrpPos = hrp.Position isHiding = true end
                 hrp.CFrame = CFrame.new(hrp.Position.X, getgenv().Config.HideDepth, hrp.Position.Z)
@@ -164,13 +195,11 @@ task.spawn(function()
                 hrp.CFrame = CFrame.new(hrp.Position.X, lastHrpPos.Y + 2, hrp.Position.Z)
             end
 
-            -- Reset logic
             if collectedCount >= currentMax and currentMax > 0 then
                 if character:FindFirstChild("Humanoid") then character.Humanoid.Health = 0 end
                 isInRound = false task.wait(5) continue
             end
 
-            -- Physics
             if not bodyVelocity or bodyVelocity.Parent ~= hrp then
                 bodyVelocity = Instance.new("BodyVelocity", hrp)
                 bodyVelocity.MaxForce = Vector3.new(9e9, 9e9, 9e9)
