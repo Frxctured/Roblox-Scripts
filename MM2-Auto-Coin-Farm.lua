@@ -151,13 +151,13 @@ RunService.Heartbeat:Connect(function()
     if getgenv().Config.GunESP then
         local gun = workspace:FindFirstChild("GunDrop")
         if gun then
-            local handle = gun:FindFirstChild("Handle") or gun:FindFirstChildWhichIsA("BasePart")
-            if handle and not handle:FindFirstChild("GunHighlight") then
-                local ghl = Instance.new("Highlight", handle)
+            -- local handle = gun:FindFirstChild("Handle") or gun:FindFirstChildWhichIsA("BasePart")
+            -- if handle and not handle:FindFirstChild("GunHighlight") then
+                local ghl = Instance.new("Highlight", gun)
                 ghl.Name = "GunHighlight"
-                ghl.FillColor = Color3.fromRGB(255, 215, 0)
+                ghl.FillColor = Color3.fromRGB(0, 120, 255)
                 ghl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-            end
+            -- end
         end
     end
 end)
