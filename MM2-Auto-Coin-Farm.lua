@@ -1,12 +1,12 @@
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 local Window = Rayfield:CreateWindow({
-   Name = "Frxctured's MM2 Menu",
-   Icon = "audio-waveform"
-   LoadingTitle = "Loading bleh :3",
-   LoadingSubtitle = "by Frxctured",
-   ShowText = "Open"
-   ConfigurationSaving = { Enabled = false },
+    Name = "Frxctured's MM2 Menu",
+    Icon = "audio-waveform",
+    LoadingTitle = "Loading bleh :3",
+    LoadingSubtitle = "by Frxctured",
+    ShowText = "Open",
+    ConfigurationSaving = { Enabled = false },
 })
 
 -- ### 1. STATE MANAGEMENT ### --
