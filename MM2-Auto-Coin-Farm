@@ -60,47 +60,96 @@ VisualsTab:CreateToggle({
    Callback = function(Value) getgenv().Config.ESP = Value end,
 })
 
---- ### 1. THE NOCLIP ENGINE (WALL FIX) ### ---
--- This must run every frame to prevent physics from pushing you back
+VisualsTab:CreateToggle({
+   Name = "Dropped Gun ESP",
+   CurrentValue = true,
+   Callback = function(Value) getgenv().Config.GunESP = Value end,
+})
+
+--- ### 1. THE NOCLIP ENGINE ### ---
 RunService.Stepped:Connect(function()
     if getgenv().Config.Farm and character then
         for _, part in ipairs(character:GetDescendants()) do
-            if part:IsA("BasePart") then
-                part.CanCollide = false
-            end
+            if part:IsA("BasePart") then part.CanCollide = false end
         end
     end
 end)
 
---- ### 2. CORE LOGIC ### ---
+--- ### 2. THE REACTIVE ESP LOGIC ### ---
 
 local function clearHighlights()
     for _, p in pairs(Players:GetPlayers()) do
-        if p.Character and p.Character:FindFirstChild("RoleHighlight") then p.Character.RoleHighlight:Destroy() end
-    end
-end
-
-local function applyHighlights()
-    if not getgenv().Config.ESP then clearHighlights() return end
-    local amIMurderer = (playerRoles[player.Name] and playerRoles[player.Name].Role == "Murderer")
-    for name, data in pairs(playerRoles) do
-        if name == player.Name then continue end
-        local targetPlayer = Players:FindFirstChild(name)
-        if targetPlayer and targetPlayer.Character then
-            local hl = targetPlayer.Character:FindFirstChild("RoleHighlight") or Instance.new("Highlight", targetPlayer.Character)
-            hl.Name = "RoleHighlight"
-            if data.Role == "Murderer" then hl.FillColor = Color3.fromRGB(255,0,0) hl.FillTransparency = 0.5
-            elseif data.Role == "Sheriff" or data.Role == "Hero" then hl.FillColor = Color3.fromRGB(0,120,255) hl.FillTransparency = 0.5
-            elseif amIMurderer and getgenv().Config.SubtleESP then hl.FillTransparency = 1 hl.OutlineColor = Color3.white hl.OutlineTransparency = 0.6
-            else if not amIMurderer then hl:Destroy() end end
+        if p.Character and p.Character:FindFirstChild("RoleHighlight") then 
+            p.Character.RoleHighlight:Destroy() 
         end
     end
 end
 
+-- This function now runs inside the main loop for constant updates
+local function updateVisuals()
+    -- Player ESP
+    if getgenv().Config.ESP then
+        local amIMurderer = (playerRoles[player.Name] and playerRoles[player.Name].Role == "Murderer")
+        for name, data in pairs(playerRoles) do
+            if name == player.Name then continue end
+            local targetPlayer = Players:FindFirstChild(name)
+            if targetPlayer and targetPlayer.Character then
+                local hl = targetPlayer.Character:FindFirstChild("RoleHighlight") or Instance.new("Highlight", targetPlayer.Character)
+                hl.Name = "RoleHighlight"
+                hl.OutlineTransparency = 0
+                
+                if data.Role == "Murderer" then
+                    hl.FillColor = Color3.fromRGB(255, 0, 0)
+                    hl.FillTransparency = 0.5
+                elseif data.Role == "Sheriff" or data.Role == "Hero" then
+                    hl.FillColor = Color3.fromRGB(0, 120, 255)
+                    hl.FillTransparency = 0.5
+                elseif amIMurderer and getgenv().Config.SubtleESP then
+                    hl.FillTransparency = 0.75 
+                    hl.OutlineColor = Color3.white
+                    hl.OutlineTransparency = 0.6
+                else
+                    if not amIMurderer then hl:Destroy() end
+                end
+            end
+        end
+    else
+        clearHighlights()
+    end
+
+    -- Gun ESP
+    if getgenv().Config.GunESP then
+        local gun = workspace:FindFirstChild("GunDrop")
+        if gun then
+            local handle = gun:FindFirstChild("Handle") or gun:FindFirstChildWhichIsA("BasePart")
+            if handle and not handle:FindFirstChild("GunHighlight") then
+                local hl = Instance.new("Highlight", handle)
+                hl.Name = "GunHighlight"
+                hl.FillColor = Color3.fromRGB(255, 215, 0) -- Gold
+                hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+            end
+        end
+    end
+end
+
+--- ### 3. ROUND & COIN SYNC ### ---
 local GameplayRemotes = game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("Gameplay")
-GameplayRemotes.RoundStart.OnClientEvent:Connect(function(_, roles) playerRoles = roles isInRound = true applyHighlights() end)
-GameplayRemotes.RoundEndFade.OnClientEvent:Connect(function() playerRoles = {} isInRound = false isHiding = false clearHighlights() end)
-GameplayRemotes.CoinCollected.OnClientEvent:Connect(function(_, cur, max) collectedCount = tonumber(cur) or 0 currentMax = tonumber(max) or 50 end)
+GameplayRemotes.RoundStart.OnClientEvent:Connect(function(_, roles) 
+    playerRoles = roles 
+    isInRound = true 
+end)
+
+GameplayRemotes.RoundEndFade.OnClientEvent:Connect(function() 
+    playerRoles = {} 
+    isInRound = false 
+    isHiding = false 
+    clearHighlights() 
+end)
+
+GameplayRemotes.CoinCollected.OnClientEvent:Connect(function(_, cur, max) 
+    collectedCount = tonumber(cur) or 0 
+    currentMax = tonumber(max) or 50 
+end)
 
 local function getMurderer()
     for name, data in pairs(playerRoles) do
@@ -112,16 +161,22 @@ local function getMurderer()
     return nil
 end
 
+--- ### 4. THE ENGINE ### ---
 task.spawn(function()
     while true do
         character = player.Character
         hrp = character and character:FindFirstChild("HumanoidRootPart")
         
+        -- Always update visuals if in a round
+        if isInRound then
+            updateVisuals()
+        end
+
         if getgenv().Config.Farm and isInRound and hrp then
             local mHrp = getMurderer()
             local dist = mHrp and (mHrp.Position - hrp.Position).Magnitude or math.huge
             
-            -- Auto-Hide
+            -- Auto-Hide logic
             if getgenv().Config.AutoHide and dist < getgenv().Config.SafetyDist then
                 if not isHiding then lastHrpPos = hrp.Position isHiding = true end
                 hrp.CFrame = CFrame.new(hrp.Position.X, getgenv().Config.HideDepth, hrp.Position.Z)
@@ -131,13 +186,13 @@ task.spawn(function()
                 hrp.CFrame = CFrame.new(hrp.Position.X, lastHrpPos.Y + 2, hrp.Position.Z) 
             end
 
-            -- Reset/Full Bag
+            -- Full Bag Reset
             if collectedCount >= currentMax and currentMax > 0 then
                 if character:FindFirstChild("Humanoid") then character.Humanoid.Health = 0 end
                 isInRound = false task.wait(5) continue
             end
 
-            -- BodyVelocity Management
+            -- Physics
             if not bodyVelocity or bodyVelocity.Parent ~= hrp then
                 if bodyVelocity then bodyVelocity:Destroy() end
                 bodyVelocity = Instance.new("BodyVelocity", hrp)
@@ -165,7 +220,6 @@ task.spawn(function()
             end
         else
             if bodyVelocity then bodyVelocity:Destroy() bodyVelocity = nil end
-            if character and character:FindFirstChild("Humanoid") then character.Humanoid.PlatformStand = false end
         end
         RunService.Heartbeat:Wait()
     end
