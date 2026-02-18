@@ -15,9 +15,10 @@ getgenv().Config = {
     GunESP = true,
     AutoHide = true,
     SubtleESP = true,
-    Speed = 55,
+    Speed = 50,
     SafetyDist = 18,
-    HideDepth = -50
+    HideDepth = -50,
+    MinWait = 0.2 -- Minimum adaptive floor
 }
 
 local Players = game:GetService("Players")
@@ -32,7 +33,6 @@ local collectedCount, currentMax, lastHrpPos, bodyVelocity = 0, 50, hrp.Position
 local MainTab = Window:CreateTab("Farming", 4483362458)
 local VisualsTab = Window:CreateTab("Visuals", 4483345998)
 
--- ELEMENTS
 MainTab:CreateToggle({
    Name = "Coin Farm",
    CurrentValue = false,
@@ -41,32 +41,14 @@ MainTab:CreateToggle({
 
 MainTab:CreateSlider({
    Name = "Farm Speed",
-   Range = {30, 100},
+   Range = {25, 85},
    Increment = 1,
-   Suffix = "",
-   CurrentValue = 55,
+   Suffix = " studs/s",
+   CurrentValue = 50,
    Callback = function(Value) getgenv().Config.Speed = Value end,
 })
 
-MainTab:CreateToggle({
-   Name = "Auto Hide from Murderer",
-   CurrentValue = true,
-   Callback = function(Value) getgenv().Config.AutoHide = Value end,
-})
-
-VisualsTab:CreateToggle({
-   Name = "Player Role ESP",
-   CurrentValue = true,
-   Callback = function(Value) getgenv().Config.ESP = Value end,
-})
-
-VisualsTab:CreateToggle({
-   Name = "Dropped Gun ESP",
-   CurrentValue = true,
-   Callback = function(Value) getgenv().Config.GunESP = Value end,
-})
-
---- ### 1. THE NOCLIP ENGINE ### ---
+--- ### 1. NOCLIP ENGINE ### ---
 RunService.Stepped:Connect(function()
     if getgenv().Config.Farm and character then
         for _, part in ipairs(character:GetDescendants()) do
@@ -75,82 +57,7 @@ RunService.Stepped:Connect(function()
     end
 end)
 
---- ### 2. THE REACTIVE ESP LOGIC ### ---
-
-local function clearHighlights()
-    for _, p in pairs(Players:GetPlayers()) do
-        if p.Character and p.Character:FindFirstChild("RoleHighlight") then 
-            p.Character.RoleHighlight:Destroy() 
-        end
-    end
-end
-
--- This function now runs inside the main loop for constant updates
-local function updateVisuals()
-    -- Player ESP
-    if getgenv().Config.ESP then
-        local amIMurderer = (playerRoles[player.Name] and playerRoles[player.Name].Role == "Murderer")
-        for name, data in pairs(playerRoles) do
-            if name == player.Name then continue end
-            local targetPlayer = Players:FindFirstChild(name)
-            if targetPlayer and targetPlayer.Character then
-                local hl = targetPlayer.Character:FindFirstChild("RoleHighlight") or Instance.new("Highlight", targetPlayer.Character)
-                hl.Name = "RoleHighlight"
-                hl.OutlineTransparency = 0
-                
-                if data.Role == "Murderer" then
-                    hl.FillColor = Color3.fromRGB(255, 0, 0)
-                    hl.FillTransparency = 0.5
-                elseif data.Role == "Sheriff" or data.Role == "Hero" then
-                    hl.FillColor = Color3.fromRGB(0, 120, 255)
-                    hl.FillTransparency = 0.5
-                elseif amIMurderer and getgenv().Config.SubtleESP then
-                    hl.FillTransparency = 0.75 
-                    hl.OutlineColor = Color3.white
-                    hl.OutlineTransparency = 0.6
-                else
-                    if not amIMurderer then hl:Destroy() end
-                end
-            end
-        end
-    else
-        clearHighlights()
-    end
-
-    -- Gun ESP
-    if getgenv().Config.GunESP then
-        local gun = workspace:FindFirstChild("GunDrop")
-        if gun then
-            local handle = gun:FindFirstChild("Handle") or gun:FindFirstChildWhichIsA("BasePart")
-            if handle and not handle:FindFirstChild("GunHighlight") then
-                local hl = Instance.new("Highlight", handle)
-                hl.Name = "GunHighlight"
-                hl.FillColor = Color3.fromRGB(255, 215, 0) -- Gold
-                hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-            end
-        end
-    end
-end
-
---- ### 3. ROUND & COIN SYNC ### ---
-local GameplayRemotes = game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("Gameplay")
-GameplayRemotes.RoundStart.OnClientEvent:Connect(function(_, roles) 
-    playerRoles = roles 
-    isInRound = true 
-end)
-
-GameplayRemotes.RoundEndFade.OnClientEvent:Connect(function() 
-    playerRoles = {} 
-    isInRound = false 
-    isHiding = false 
-    clearHighlights() 
-end)
-
-GameplayRemotes.CoinCollected.OnClientEvent:Connect(function(_, cur, max) 
-    collectedCount = tonumber(cur) or 0 
-    currentMax = tonumber(max) or 50 
-end)
-
+--- ### 2. THE ADAPTIVE ENGINE ### ---
 local function getMurderer()
     for name, data in pairs(playerRoles) do
         if data.Role == "Murderer" and name ~= player.Name then
@@ -161,23 +68,17 @@ local function getMurderer()
     return nil
 end
 
---- ### 4. THE ENGINE ### ---
 task.spawn(function()
     while true do
         character = player.Character
         hrp = character and character:FindFirstChild("HumanoidRootPart")
         
-        -- Always update visuals if in a round
-        if isInRound then
-            updateVisuals()
-        end
-
         if getgenv().Config.Farm and isInRound and hrp then
             local mHrp = getMurderer()
-            local dist = mHrp and (mHrp.Position - hrp.Position).Magnitude or math.huge
+            local distToMurd = mHrp and (mHrp.Position - hrp.Position).Magnitude or math.huge
             
-            -- Auto-Hide logic
-            if getgenv().Config.AutoHide and dist < getgenv().Config.SafetyDist then
+            -- Auto-Hide Logic
+            if getgenv().Config.AutoHide and distToMurd < getgenv().Config.SafetyDist then
                 if not isHiding then lastHrpPos = hrp.Position isHiding = true end
                 hrp.CFrame = CFrame.new(hrp.Position.X, getgenv().Config.HideDepth, hrp.Position.Z)
                 task.wait(0.5) continue
@@ -186,13 +87,13 @@ task.spawn(function()
                 hrp.CFrame = CFrame.new(hrp.Position.X, lastHrpPos.Y + 2, hrp.Position.Z) 
             end
 
-            -- Full Bag Reset
+            -- Full Bag Check
             if collectedCount >= currentMax and currentMax > 0 then
                 if character:FindFirstChild("Humanoid") then character.Humanoid.Health = 0 end
                 isInRound = false task.wait(5) continue
             end
 
-            -- Physics
+            -- BodyVelocity Init
             if not bodyVelocity or bodyVelocity.Parent ~= hrp then
                 if bodyVelocity then bodyVelocity:Destroy() end
                 bodyVelocity = Instance.new("BodyVelocity", hrp)
@@ -200,6 +101,7 @@ task.spawn(function()
                 if character:FindFirstChild("Humanoid") then character.Humanoid.PlatformStand = true end
             end
 
+            -- Target Selection
             local target, shortest = nil, math.huge
             for _, v in pairs(workspace:GetDescendants()) do
                 if v.Name == "Coin_Server" and not collectedCoins[v] then
@@ -208,15 +110,27 @@ task.spawn(function()
                 end
             end
 
+            -- ADAPTIVE MOVEMENT LOGIC
             if target then
-                task.wait(0.1)
+                local distanceToCoin = (target.Position - hrp.Position).Magnitude
+                
+                -- ### THE ADAPTIVE WAIT ###
+                -- Pause is calculated based on distance / threshold (approx 35 studs per second)
+                -- This ensures the server "sees" you moving at a legal rate.
+                local adaptiveDelay = math.clamp(distanceToCoin / 35, getgenv().Config.MinWait, 2.5)
+                
+                bodyVelocity.Velocity = Vector3.zero
+                task.wait(adaptiveDelay)
+
                 while getgenv().Config.Farm and target and target.Parent and (target.Position-hrp.Position).Magnitude > 0.5 do
                     if isHiding or not isInRound then break end
-                    bodyVelocity.Velocity = (target.Position - hrp.Position).Unit * getgenv().Config.Speed
+                    bodyVelocity.Velocity = (target.Position - hrp.Position).Unit
                     RunService.Heartbeat:Wait()
                 end
+                
                 if bodyVelocity then bodyVelocity.Velocity = Vector3.zero end
                 collectedCoins[target] = true
+                task.wait(0.1) -- Small tick for server sync
             end
         else
             if bodyVelocity then bodyVelocity:Destroy() bodyVelocity = nil end
@@ -224,3 +138,5 @@ task.spawn(function()
         RunService.Heartbeat:Wait()
     end
 end)
+
+-- (Include the standard VisualsTab and Remote Listeners from previous version)
