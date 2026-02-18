@@ -1,12 +1,16 @@
-local Players = game:GetService("Players")
-local RunService = game:GetService("RunService")
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
-local player = Players.LocalPlayer
-local character = player.Character or player.CharacterAdded:Wait()
-local hrp = character:WaitForChild("HumanoidRootPart")
+local Window = Rayfield:CreateWindow({
+   Name = "FRXCTURED'S MM2",
+   LoadingTitle = "FrxcturedMM2 Suite",
+   LoadingSubtitle = "by Gemini",
+   ConfigurationSaving = {
+      Enabled = false
+   },
+   KeySystem = false
+})
 
--- CONFIG
+-- STATE
 getgenv().Config = {
     Farm = false,
     ESP = true,
@@ -18,106 +22,53 @@ getgenv().Config = {
     HideDepth = -50
 }
 
-local collectedCoins = {} 
-local collectedCount = 0
-local currentMax = 50 
-local playerRoles = {}
-local isHiding = false
-local isInRound = false
-local lastHrpPos = hrp.Position
-local bodyVelocity = nil
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local player = Players.LocalPlayer
+local character = player.Character or player.CharacterAdded:Wait()
+local hrp = character:WaitForChild("HumanoidRootPart")
+local playerRoles, collectedCoins, isHiding, isInRound = {}, {}, false, false
+local collectedCount, currentMax, lastHrpPos, bodyVelocity = 0, 50, hrp.Position, nil
 
---- ### 1. THE BRUTE-FORCE UI ### ---
-local screenGui = Instance.new("ScreenGui", player.PlayerGui)
-screenGui.Name = "FrxcturedMM2"
-screenGui.ResetOnSpawn = false
+-- TABS
+local MainTab = Window:CreateTab("Farming", 4483362458)
+local VisualsTab = Window:CreateTab("Visuals", 4483345998)
 
-local main = Instance.new("Frame", screenGui)
-main.Size = UDim2.new(0, 200, 0, 280)
-main.Position = UDim2.new(0.5, -100, 0.3, 0)
-main.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-main.Active = true
-main.Draggable = true
+-- ELEMENTS
+MainTab:CreateToggle({
+   Name = "Coin Farm",
+   CurrentValue = false,
+   Callback = function(Value) getgenv().Config.Farm = Value end,
+})
 
-local title = Instance.new("TextLabel", main)
-title.Size = UDim2.new(1, 0, 0, 30)
-title.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
-title.Text = "FRXCTURED'S MM2"
-title.TextColor3 = Color3.white
-title.TextSize = 14
-title.Font = Enum.Font.SourceSansBold
+MainTab:CreateSlider({
+   Name = "Farm Speed",
+   Range = {30, 100},
+   Increment = 1,
+   Suffix = "Speed",
+   CurrentValue = 55,
+   Callback = function(Value) getgenv().Config.Speed = Value end,
+})
 
--- BUTTON 1: FARM
-local btn1 = Instance.new("TextButton", main)
-btn1.Size = UDim2.new(0, 180, 0, 40)
-btn1.Position = UDim2.new(0, 10, 0, 40)
-btn1.BackgroundColor3 = Color3.fromRGB(120, 40, 40)
-btn1.Text = "Coin Farm: OFF"
-btn1.TextColor3 = Color3.white
-btn1.Font = Enum.Font.SourceSans
-btn1.MouseButton1Click:Connect(function()
-    getgenv().Config.Farm = not getgenv().Config.Farm
-    btn1.Text = "Coin Farm: " .. (getgenv().Config.Farm and "ON" or "OFF")
-    btn1.BackgroundColor3 = getgenv().Config.Farm and Color3.fromRGB(40, 120, 40) or Color3.fromRGB(120, 40, 40)
-end)
+MainTab:CreateToggle({
+   Name = "Auto Hide (Underground)",
+   CurrentValue = true,
+   Callback = function(Value) getgenv().Config.AutoHide = Value end,
+})
 
--- BUTTON 2: ROLE ESP
-local btn2 = Instance.new("TextButton", main)
-btn2.Size = UDim2.new(0, 180, 0, 40)
-btn2.Position = UDim2.new(0, 10, 0, 85)
-btn2.BackgroundColor3 = Color3.fromRGB(40, 120, 40)
-btn2.Text = "Role ESP: ON"
-btn2.TextColor3 = Color3.white
-btn2.Font = Enum.Font.SourceSans
-btn2.MouseButton1Click:Connect(function()
-    getgenv().Config.ESP = not getgenv().Config.ESP
-    btn2.Text = "Role ESP: " .. (getgenv().Config.ESP and "ON" or "OFF")
-    btn2.BackgroundColor3 = getgenv().Config.ESP and Color3.fromRGB(40, 120, 40) or Color3.fromRGB(120, 40, 40)
-end)
+VisualsTab:CreateToggle({
+   Name = "Player Role ESP",
+   CurrentValue = true,
+   Callback = function(Value) getgenv().Config.ESP = Value end,
+})
 
--- BUTTON 3: SUBTLE ESP
-local btn3 = Instance.new("TextButton", main)
-btn3.Size = UDim2.new(0, 180, 0, 40)
-btn3.Position = UDim2.new(0, 10, 0, 130)
-btn3.BackgroundColor3 = Color3.fromRGB(40, 120, 40)
-btn3.Text = "Innocent ESP: ON"
-btn3.TextColor3 = Color3.white
-btn3.Font = Enum.Font.SourceSans
-btn3.MouseButton1Click:Connect(function()
-    getgenv().Config.SubtleESP = not getgenv().Config.SubtleESP
-    btn3.Text = "Innocent ESP: " .. (getgenv().Config.SubtleESP and "ON" or "OFF")
-    btn3.BackgroundColor3 = getgenv().Config.SubtleESP and Color3.fromRGB(40, 120, 40) or Color3.fromRGB(120, 40, 40)
-end)
+VisualsTab:CreateToggle({
+   Name = "Innocent ESP (As Murd)",
+   CurrentValue = true,
+   Callback = function(Value) getgenv().Config.SubtleESP = Value end,
+})
 
--- BUTTON 4: GUN HIGHLIGHT
-local btn4 = Instance.new("TextButton", main)
-btn4.Size = UDim2.new(0, 180, 0, 40)
-btn4.Position = UDim2.new(0, 10, 0, 175)
-btn4.BackgroundColor3 = Color3.fromRGB(40, 120, 40)
-btn4.Text = "Gun ESP: ON"
-btn4.TextColor3 = Color3.white
-btn4.Font = Enum.Font.SourceSans
-btn4.MouseButton1Click:Connect(function()
-    getgenv().Config.GunESP = not getgenv().Config.GunESP
-    btn4.Text = "Gun ESP: " .. (getgenv().Config.GunESP and "ON" or "OFF")
-    btn4.BackgroundColor3 = getgenv().Config.GunESP and Color3.fromRGB(40, 120, 40) or Color3.fromRGB(120, 40, 40)
-end)
-
--- BUTTON 5: AUTO HIDE
-local btn5 = Instance.new("TextButton", main)
-btn5.Size = UDim2.new(0, 180, 0, 40)
-btn5.Position = UDim2.new(0, 10, 0, 220)
-btn5.BackgroundColor3 = Color3.fromRGB(40, 120, 40)
-btn5.Text = "Auto Hide: ON"
-btn5.TextColor3 = Color3.white
-btn5.Font = Enum.Font.SourceSans
-btn5.MouseButton1Click:Connect(function()
-    getgenv().Config.AutoHide = not getgenv().Config.AutoHide
-    btn5.Text = "Auto Hide: " .. (getgenv().Config.AutoHide and "ON" or "OFF")
-    btn5.BackgroundColor3 = getgenv().Config.AutoHide and Color3.fromRGB(40, 120, 40) or Color3.fromRGB(120, 40, 40)
-end)
-
---- ### 2. ENGINE LOGIC ### ---
+--- ### ENGINE LOGIC ### ---
 
 local function clearHighlights()
     for _, p in pairs(Players:GetPlayers()) do
@@ -128,47 +79,24 @@ end
 local function applyHighlights()
     if not getgenv().Config.ESP then clearHighlights() return end
     local amIMurderer = (playerRoles[player.Name] and playerRoles[player.Name].Role == "Murderer")
-
     for name, data in pairs(playerRoles) do
         if name == player.Name then continue end
         local targetPlayer = Players:FindFirstChild(name)
         if targetPlayer and targetPlayer.Character then
             local hl = targetPlayer.Character:FindFirstChild("RoleHighlight") or Instance.new("Highlight", targetPlayer.Character)
             hl.Name = "RoleHighlight"
-            
-            if data.Role == "Murderer" then
-                hl.FillColor = Color3.fromRGB(255, 0, 0)
-                hl.FillTransparency = 0.5
-            elseif data.Role == "Sheriff" or data.Role == "Hero" then
-                hl.FillColor = Color3.fromRGB(0, 120, 255)
-                hl.FillTransparency = 0.5
-            elseif amIMurderer and getgenv().Config.SubtleESP then
-                hl.FillTransparency = 1 
-                hl.OutlineColor = Color3.white
-                hl.OutlineTransparency = 0.6
-            else
-                if not amIMurderer then hl:Destroy() end
-            end
+            if data.Role == "Murderer" then hl.FillColor = Color3.fromRGB(255,0,0) hl.FillTransparency = 0.5
+            elseif data.Role == "Sheriff" or data.Role == "Hero" then hl.FillColor = Color3.fromRGB(0,120,255) hl.FillTransparency = 0.5
+            elseif amIMurderer and getgenv().Config.SubtleESP then hl.FillTransparency = 1 hl.OutlineColor = Color3.white hl.OutlineTransparency = 0.6
+            else if not amIMurderer then hl:Destroy() end end
         end
     end
 end
 
-local GameplayRemotes = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("Gameplay")
-GameplayRemotes.RoundStart.OnClientEvent:Connect(function(_, roles) 
-    playerRoles = roles 
-    isInRound = true 
-    applyHighlights() 
-end)
-GameplayRemotes.RoundEndFade.OnClientEvent:Connect(function() 
-    playerRoles = {} 
-    isInRound = false 
-    isHiding = false 
-    clearHighlights() 
-end)
-GameplayRemotes.CoinCollected.OnClientEvent:Connect(function(_, cur, max) 
-    collectedCount = tonumber(cur) or 0
-    currentMax = tonumber(max) or 50
-end)
+local GameplayRemotes = game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("Gameplay")
+GameplayRemotes.RoundStart.OnClientEvent:Connect(function(_, roles) playerRoles = roles isInRound = true applyHighlights() end)
+GameplayRemotes.RoundEndFade.OnClientEvent:Connect(function() playerRoles = {} isInRound = false isHiding = false clearHighlights() end)
+GameplayRemotes.CoinCollected.OnClientEvent:Connect(function(_, cur, max) collectedCount = tonumber(cur) or 0 currentMax = tonumber(max) or 50 end)
 
 local function getMurderer()
     for name, data in pairs(playerRoles) do
@@ -185,38 +113,29 @@ task.spawn(function()
         if getgenv().Config.Farm and isInRound and hrp then
             local mHrp = getMurderer()
             local dist = mHrp and (mHrp.Position - hrp.Position).Magnitude or math.huge
-
             if getgenv().Config.AutoHide and dist < getgenv().Config.SafetyDist then
                 if not isHiding then lastHrpPos = hrp.Position isHiding = true end
                 hrp.CFrame = CFrame.new(hrp.Position.X, getgenv().Config.HideDepth, hrp.Position.Z)
                 task.wait(0.5) continue
-            elseif isHiding then
-                isHiding = false
-                hrp.CFrame = CFrame.new(hrp.Position.X, lastHrpPos.Y + 2, hrp.Position.Z)
-            end
-
+            elseif isHiding then isHiding = false hrp.CFrame = CFrame.new(hrp.Position.X, lastHrpPos.Y + 2, hrp.Position.Z) end
             if collectedCount >= currentMax and currentMax > 0 then
                 if character:FindFirstChild("Humanoid") then character.Humanoid.Health = 0 end
                 isInRound = false task.wait(5) continue
             end
-
             if not bodyVelocity or bodyVelocity.Parent ~= hrp then
                 bodyVelocity = Instance.new("BodyVelocity", hrp)
                 bodyVelocity.MaxForce = Vector3.new(9e9, 9e9, 9e9)
                 if character:FindFirstChild("Humanoid") then character.Humanoid.PlatformStand = true end
             end
-
-            local target = nil
-            local shortest = math.huge
+            local target, shortest = nil, math.huge
             for _, v in pairs(workspace:GetDescendants()) do
                 if v.Name == "Coin_Server" and not collectedCoins[v] then
                     local d = (v.Position - hrp.Position).Magnitude
                     if d < shortest then shortest = d target = v end
                 end
             end
-
             if target then
-                task.wait(0.2)
+                task.wait(0.1)
                 while getgenv().Config.Farm and target and target.Parent and (target.Position-hrp.Position).Magnitude > 0.5 do
                     if isHiding or not isInRound then break end
                     bodyVelocity.Velocity = (target.Position - hrp.Position).Unit * getgenv().Config.Speed
@@ -227,7 +146,6 @@ task.spawn(function()
             end
         else
             if bodyVelocity then bodyVelocity:Destroy() bodyVelocity = nil end
-            if character:FindFirstChild("Humanoid") then character.Humanoid.PlatformStand = false end
         end
         RunService.Heartbeat:Wait()
     end
