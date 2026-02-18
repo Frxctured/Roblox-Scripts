@@ -17,6 +17,11 @@ getgenv().Config = {
         MinWait = 0.2,
         Reset = true,
     },
+    AutoWin = {
+        Murderer = false,
+        Sheriff = false,
+        Innocent = false,
+    }
     ESP = {
         Murderer = false,
         Sheriff = false,
@@ -24,6 +29,7 @@ getgenv().Config = {
         Gun = false,
     },
 }
+local cfg = getgenv().Config
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -36,7 +42,7 @@ local hrp = character:WaitForChild("HumanoidRootPart")
 
 local playerRoles = {}
 local collectedCoins = {}
-local isInRound = false
+local isActiveRound = false
 local isInLobby = true
 local collectedCount = 0
 local currentMax = 40 
@@ -52,13 +58,16 @@ local DEBUGTab = Window:CreateTab("Debug", "bug")
 
 -- ## MAIN TAB ## --
 
-local StatusLabel = MainTab:CreateLabel("Status: Initializing...")
+-- # Coin farming # --
+MainTab:CreateSection("Coins")
 
 MainTab:CreateToggle({
     Name = "Coin Farm",
     CurrentValue = false,
-    Callback = function(Value) getgenv().Config.Farm.Active = Value end,
+    Callback = function(Value) cfg.Farm.Active = Value end,
 })
+
+local StatusLabel = MainTab:CreateLabel("Status: Initializing...")
 
 MainTab:CreateSlider({
     Name = "Farm Speed",
@@ -66,40 +75,63 @@ MainTab:CreateSlider({
     Increment = 1,
     Suffix = " studs/s",
     CurrentValue = 50,
-    Callback = function(Value) getgenv().Config.Farm.Speed = Value end,
+    Callback = function(Value) cfg.Farm.Speed = Value end,
 })
 
 MainTab:CreateToggle({
     Name = "Reset at full bag",
     CurrentValue = true,
-    Callback = function(Value) getgenv().Config.Farm.Reset = Value end,
+    Callback = function(Value) cfg.Farm.Reset = Value end,
 })
 
+-- # Auto Win # -- (soon)
+MainTab:CreateSection("Auto Win (soon)")
+
+MainTab:CreateToggle({
+    Name = "Win as Murderer",
+    CurrentValue = false,
+    Callback = function(Value) cfg.AutoWin.Murderer = Value end,
+})
+
+local winAsSheriffToggle = MainTab:CreateToggle({
+    Name = "Win as Sheriff",
+    CurrentValue = false,
+    Callback = function(Value) cfg.AutoWin.Sheriff = Value end,
+})
+
+MainTab:CreateToggle({
+    Name = "Win as Innocent (Sheriff)",
+    CurrentValue = false,
+    Callback = function(Value) 
+        cfg.AutoWin.Innocent = Value 
+        winAsSheriffToggle:Set(true)
+    end,
+})
 
 -- ## ESP TAB ## --
 
 ESPTab:CreateToggle({
     Name = "Show Murderer",
     CurrentValue = false,
-    Callback = function(Value) getgenv().Config.ESP.Murderer = Value end,
+    Callback = function(Value) cfg.ESP.Murderer = Value end,
 })
 
 ESPTab:CreateToggle({
     Name = "Show Sheriff",
     CurrentValue = false,
-    Callback = function(Value) getgenv().Config.ESP.Sheriff = Value end,
+    Callback = function(Value) cfg.ESP.Sheriff = Value end,
 })
 
 ESPTab:CreateToggle({
     Name = "Show Innocents (only as Murderer)",
     CurrentValue = false,
-    Callback = function(Value) getgenv().Config.ESP.Innocent = Value end,
+    Callback = function(Value) cfg.ESP.Innocent = Value end,
 })
 
 ESPTab:CreateToggle({
     Name = "Show Gun Drop",
     CurrentValue = false,
-    Callback = function(Value) getgenv().Config.ESP.Gun = Value end,
+    Callback = function(Value) cfg.ESP.Gun = Value end,
 })
 
 
@@ -135,7 +167,12 @@ local DebugLabels = {
     CfgESPMurder = DEBUGTab:CreateLabel("Cfg ESP Murder: ..."),
     CfgESPSheriff = DEBUGTab:CreateLabel("Cfg ESP Sheriff: ..."),
     CfgESPInnocent = DEBUGTab:CreateLabel("Cfg ESP Innocent: ..."),
-    CfgESPGun = DEBUGTab:CreateLabel("Cfg ESP Gun: ...")
+    CfgESPGun = DEBUGTab:CreateLabel("Cfg ESP Gun: ..."),
+    
+    -- Auto Win Debugs
+    CfgAutoWinMurder = DEBUGTab:CreateLabel("Cfg AutoWin Murder: ..."),
+    CfgAutoWinSheriff = DEBUGTab:CreateLabel("Cfg AutoWin Sheriff: ..."),
+    CfgAutoWinInnocent = DEBUGTab:CreateLabel("Cfg AutoWin Innocent: ...")
 }
 
 task.spawn(function()
@@ -143,7 +180,7 @@ task.spawn(function()
         task.wait(0.5) -- Update every 0.5s to reduce lag
         pcall(function()
             -- State Variables
-            DebugLabels.RoundResult:Set("isInRound: " .. tostring(isInRound))
+            DebugLabels.RoundResult:Set("isActiveRound: " .. tostring(isActiveRound))
             DebugLabels.LobbyResult:Set("isInLobby: " .. tostring(isInLobby))
             DebugLabels.CoinsResult:Set("collectedCount: " .. tostring(collectedCount) .. " / currentMax: " .. tostring(currentMax))
             
@@ -152,7 +189,6 @@ task.spawn(function()
             DebugLabels.RolesResult:Set("Roles Found: " .. tostring(roleCount))
             
             -- Config Variables
-            local cfg = getgenv().Config
             DebugLabels.FarmResult:Set("Farm.Active: " .. tostring(cfg.Farm.Active))
             DebugLabels.CfgSpeed:Set("Farm.Speed: " .. tostring(cfg.Farm.Speed))
             DebugLabels.CfgReset:Set("Farm.Reset: " .. tostring(cfg.Farm.Reset))
@@ -161,6 +197,11 @@ task.spawn(function()
             DebugLabels.CfgESPSheriff:Set("ESP.Sheriff: " .. tostring(cfg.ESP.Sheriff))
             DebugLabels.CfgESPInnocent:Set("ESP.Innocent: " .. tostring(cfg.ESP.Innocent))
             DebugLabels.CfgESPGun:Set("ESP.Gun: " .. tostring(cfg.ESP.Gun))
+
+            -- To be added (soon)
+            DebugLabels.CfgAutoWinMurder:Set("AutoWin.Murderer: " .. tostring(cfg.AutoWin.Murderer))
+            DebugLabels.CfgAutoWinSheriff:Set("AutoWin.Sheriff: " .. tostring(cfg.AutoWin.Sheriff))
+            DebugLabels.CfgAutoWinInnocent:Set("AutoWin.Innocent: " .. tostring(cfg.AutoWin.Innocent))
         end)
     end
 end)
@@ -189,7 +230,7 @@ end
 
 RunService.Heartbeat:Connect(function()
 
-    if not isInRound then 
+    if not isActiveRound then 
         clearHighlights() 
         return 
     end    -- Dynamic Role Detection (Checks Backpack/Character for weapons)
@@ -212,15 +253,15 @@ RunService.Heartbeat:Connect(function()
         local hl = p.Character:FindFirstChild("RoleHighlight") or Instance.new("Highlight", p.Character)
         hl.Name = "RoleHighlight"
         
-        if pRole == "Murderer" and getgenv().Config.ESP.Murderer then
+        if pRole == "Murderer" and cfg.ESP.Murderer then
             hl.FillColor = Color3.fromRGB(255, 0, 0)
             hl.FillTransparency = 0.5
             hl.Enabled = true
-        elseif pRole == "Sheriff" and getgenv().Config.ESP.Sheriff then
+        elseif pRole == "Sheriff" and cfg.ESP.Sheriff then
             hl.FillColor = Color3.fromRGB(0, 120, 255)
             hl.FillTransparency = 0.5
             hl.Enabled = true
-        elseif amIMurderer and getgenv().Config.ESP.Innocent  then
+        elseif amIMurderer and cfg.ESP.Innocent  then
             hl.FillColor = Color3.fromRGB(255, 255, 255)
             hl.FillTransparency = 0.8 
             hl.OutlineColor = Color3.fromRGB(255, 255, 255)
@@ -232,7 +273,7 @@ RunService.Heartbeat:Connect(function()
     end
 
     -- GUN ESP LOGIC
-    if getgenv().Config.ESP.Gun then
+    if cfg.ESP.Gun then
         local gun = workspace:FindFirstChild("GunDrop", true)
         if gun then
             local ghl = Instance.new("Highlight", gun)
@@ -248,7 +289,7 @@ local GameplayRemotes = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("
 
 GameplayRemotes.RoundStart.OnClientEvent:Connect(function(_, roles) 
     playerRoles = roles 
-    isInRound = true 
+    isActiveRound = true 
     isInLobby = false
     collectedCoins = {}
     collectedCount = 0
@@ -256,7 +297,7 @@ end)
 
 GameplayRemotes.RoundEndFade.OnClientEvent:Connect(function() 
     playerRoles = {} 
-    isInRound = false 
+    isActiveRound = false 
     clearHighlights() 
     collectedCount = 0
 end)
@@ -271,7 +312,7 @@ end)
 
 RunService.Stepped:Connect(function()
     if character then
-        if getgenv().Config.Farm.Active then
+        if cfg.Farm.Active then
             for _, part in ipairs(character:GetDescendants()) do
                 if part:IsA("BasePart") then part.CanCollide = false end
             end
@@ -290,9 +331,9 @@ task.spawn(function()
         local humanoid = character and character:FindFirstChild("Humanoid")
         
         -- ### STATUS UPDATE LOGIC ### --
-        if not getgenv().Config.Farm.Active then
+        if not cfg.Farm.Active then
             StatusLabel:Set("Status: Farm Disabled")
-        elseif inInLobby then
+        elseif isInLobby then
             StatusLabel:Set("Status: Waiting for next Round...")
         elseif collectedCount >= currentMax then
             StatusLabel:Set("Status: Bag Full - Resetting")
@@ -301,14 +342,14 @@ task.spawn(function()
         end
 
         -- Check for death to stop farming permanently for this round
-        if isInRound and humanoid and humanoid.Health <= 0 then
+        if isActiveRound and humanoid and humanoid.Health <= 0 then
             isInLobby = true
         end
 
-        if getgenv().Config.Farm.Active and isInRound and not isInLobby and hrp and humanoid and humanoid.Health > 0 then
+        if cfg.Farm.Active and isActiveRound and not isInLobby and hrp and humanoid and humanoid.Health > 0 then
             
             -- AGGRESSIVE RESET LOGIC
-            if getgenv().Config.Farm.Reset and collectedCount >= currentMax and currentMax > 0 then
+            if cfg.Farm.Reset and collectedCount >= currentMax and currentMax > 0 then
                 humanoid.Health = 0
                 collectedCount = 0
                 isInLobby = true
@@ -335,14 +376,14 @@ task.spawn(function()
 
             if target then
                 local distanceToCoin = (target.Position - hrp.Position).Magnitude
-                local adaptiveDelay = math.clamp(distanceToCoin / 35, getgenv().Config.Farm.MinWait, 2.5)
+                local adaptiveDelay = math.clamp(distanceToCoin / 35, cfg.Farm.MinWait, 2.5)
                 
                 bodyVelocity.Velocity = Vector3.zero
                 task.wait(adaptiveDelay)
 
-                while getgenv().Config.Farm.Active and target and target.Parent and (target.Position-hrp.Position).Magnitude > 0.5 do
+                while cfg.Farm.Active and target and target.Parent and (target.Position-hrp.Position).Magnitude > 0.5 do
                     if isInLobby or humanoid.Health <= 0 then break end
-                    bodyVelocity.Velocity = (target.Position - hrp.Position).Unit * getgenv().Config.Farm.Speed
+                    bodyVelocity.Velocity = (target.Position - hrp.Position).Unit * cfg.Farm.Speed
                     RunService.Heartbeat:Wait()
                 end
                 
