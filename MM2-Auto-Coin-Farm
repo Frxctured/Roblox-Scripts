@@ -12,8 +12,8 @@ local BASE_SPEED = 55
 local MIN_WAIT = 0.2
 local VELOCITY_THRESHOLD = 35
 local COIN_TYPE_TO_FARM = "Coin"
-local SAFETY_DISTANCE = 45 -- Radius to trigger hiding
-local HIDE_DEPTH = -50     -- How far underground to go
+local SAFETY_DISTANCE = 15 -- Radius to trigger hiding
+local HIDE_DEPTH = -20     -- How far underground to go
 
 -- REMOTES
 local GameplayRemotes = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("Gameplay")
