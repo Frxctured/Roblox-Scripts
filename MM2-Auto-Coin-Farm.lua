@@ -21,7 +21,7 @@ getgenv().Config = {
         Murderer = false,
         Sheriff = false,
         Innocent = false,
-    }
+    },
     ESP = {
         Murderer = false,
         Sheriff = false,
@@ -104,7 +104,9 @@ MainTab:CreateToggle({
     CurrentValue = false,
     Callback = function(Value) 
         cfg.AutoWin.Innocent = Value 
-        winAsSheriffToggle:Set(true)
+        if Value then
+            winAsSheriffToggle:Set(true)
+        end
     end,
 })
 
