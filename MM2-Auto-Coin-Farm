@@ -3,7 +3,7 @@ local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 local Window = Rayfield:CreateWindow({
    Name = "FRXCTURED'S MM2",
    LoadingTitle = "FrxcturedMM2 Suite",
-   LoadingSubtitle = "by Gemini",
+   LoadingSubtitle = "by Frxctured",
    ConfigurationSaving = { Enabled = false },
    KeySystem = false
 })
@@ -43,13 +43,13 @@ MainTab:CreateSlider({
    Name = "Farm Speed",
    Range = {30, 100},
    Increment = 1,
-   Suffix = "Speed",
+   Suffix = "",
    CurrentValue = 55,
    Callback = function(Value) getgenv().Config.Speed = Value end,
 })
 
 MainTab:CreateToggle({
-   Name = "Auto Hide (Underground)",
+   Name = "Auto Hide from Murderer",
    CurrentValue = true,
    Callback = function(Value) getgenv().Config.AutoHide = Value end,
 })
