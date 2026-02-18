@@ -96,7 +96,12 @@ MainTab:CreateToggle({
 local winAsSheriffToggle = MainTab:CreateToggle({
     Name = "Win as Sheriff",
     CurrentValue = false,
-    Callback = function(Value) cfg.AutoWin.Sheriff = Value end,
+    Callback = function(Value) 
+        cfg.AutoWin.Sheriff = Value 
+        if cfg.AutoWin.Innocent then
+            winAsSheriffToggle:Set(true)
+        end
+    end,
 })
 
 MainTab:CreateToggle({
@@ -142,13 +147,34 @@ ESPTab:CreateToggle({
 OtherTab:CreateButton({
     Name = "Server Hop",
     Callback = function()
-        local Servers = game.HttpService:JSONDecode(game:HttpGet("https://games.roblox.com/v1/games/"..game.PlaceId.."/servers/Public?sortOrder=Desc&limit=100"))
-        for i,v in pairs(Servers.data) do
-            if v.playing < v.maxPlayers and v.id ~= game.JobId then
-                TeleportService:TeleportToPlaceInstance(game.PlaceId, v.id)
-                break
+        task.spawn(function()
+            local success, err = pcall(function()
+                local Http = game:GetService("HttpService")
+                local TPS = game:GetService("TeleportService")
+                local Api = "https://games.roblox.com/v1/games/"
+                local _place = game.PlaceId
+                local _servers = Api.._place.."/servers/Public?sortOrder=Desc&limit=100"
+                
+                local List = Http:JSONDecode(game:HttpGet(_servers))
+                if List and List.data then
+                    for i,v in next, List.data do
+                        if v.playing < v.maxPlayers and v.id ~= game.JobId then
+                            TPS:TeleportToPlaceInstance(_place, v.id, player)
+                            return
+                        end
+                    end
+                end
+            end)
+            if not success then 
+                warn("Server Hop Failed: " .. tostring(err)) 
+                Rayfield:Notify({
+                    Title = "Serverhop Failed",
+                    Content = "Error content: ".. tostring(err),
+                    Duration = 3,
+                    Image = "circle-x",
+                })
             end
-        end
+        end)
     end,
 })
 
@@ -283,6 +309,50 @@ RunService.Heartbeat:Connect(function()
             ghl.FillColor = Color3.fromRGB(255, 215, 0)
             ghl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
         end
+    end
+end)
+
+-- Kill All Logic (Murderer)
+local function KillAll()
+    local knife = character:FindFirstChild("Knife") or player.Backpack:FindFirstChild("Knife")
+    if not knife then return end
+
+    character.Humanoid:EquipTool(knife)
+
+    for _, target in ipairs(Players:GetPlayers()) do
+        if target ~= player and target.Character and target.Character:FindFirstChild("HumanoidRootPart") then
+            -- Check if target is actually in the round (not in lobby)
+            -- We can assume if their character exists and they aren't in a specific 'Lobby' folder or area, they are in game.
+            -- A better check is usually distance from the map center or checking if they have weapons/are innocent.
+            
+            -- Simple check: If they are alive and we are in a round
+            local thumanoid = target.Character:FindFirstChild("Humanoid")
+            if thumanoid and thumanoid.Health > 0 then
+                -- Teleport behind them
+                hrp.CFrame = target.Character.HumanoidRootPart.CFrame * CFrame.new(0, 0, 2)
+                task.wait()
+                -- Slash
+                if knife.Parent == character then
+                    knife:Activate()
+                else
+                    character.Humanoid:EquipTool(knife)
+                    knife:Activate()
+                end
+                task.wait(0.1)
+            end
+        end
+    end
+end
+
+task.spawn(function()
+    while true do
+        if isActiveRound and cfg.AutoWin.Murderer then
+            local myRole = getRole(player)
+            if myRole == "Murderer" then
+                KillAll() 
+            end
+        end
+        task.wait(1)
     end
 end)
 
