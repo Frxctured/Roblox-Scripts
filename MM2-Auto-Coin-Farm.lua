@@ -33,7 +33,7 @@ local hrp = character:WaitForChild("HumanoidRootPart")
 local playerRoles = {}
 local collectedCoins = {}
 local isInRound = false
-local hasDied = false -- New flag to track death
+local isInLobby = true
 local collectedCount = 0
 local currentMax = 50 
 local bodyVelocity = nil
@@ -170,7 +170,7 @@ local GameplayRemotes = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("
 GameplayRemotes.RoundStart.OnClientEvent:Connect(function(_, roles) 
     playerRoles = roles 
     isInRound = true 
-    hasDied = false
+    isInLobby = false
     collectedCoins = {}
     collectedCount = 0
 end)
@@ -191,9 +191,15 @@ end)
 --- ### 6. THE CORE ENGINE ### ---
 
 RunService.Stepped:Connect(function()
-    if getgenv().Config.Farm and character then
-        for _, part in ipairs(character:GetDescendants()) do
-            if part:IsA("BasePart") then part.CanCollide = false end
+    if character then
+        if getgenv().Config.Farm then
+            for _, part in ipairs(character:GetDescendants()) do
+                if part:IsA("BasePart") then part.CanCollide = false end
+            end
+        else
+            for _, part in ipairs(character:GetDescendants()) do
+                if part:IsA("BasePart") then part.CanCollide = true end
+            end
         end
     end
 end)
@@ -217,16 +223,16 @@ task.spawn(function()
 
         -- Check for death to stop farming permanently for this round
         if isInRound and humanoid and humanoid.Health <= 0 then
-            hasDied = true
+            isInLobby = true
         end
 
-        if getgenv().Config.Farm and isInRound and not hasDied and hrp and humanoid and humanoid.Health > 0 then
+        if getgenv().Config.Farm and isInRound and not isInLobby and hrp and humanoid and humanoid.Health > 0 then
             
             -- AGGRESSIVE RESET LOGIC
             if collectedCount >= currentMax and currentMax > 0 then
                 humanoid.Health = 0
                 collectedCount = 0
-                hasDied = true
+                isInLobby = true
                 task.wait(2)
                 continue
             end
@@ -267,6 +273,7 @@ task.spawn(function()
             end
         else
             if bodyVelocity then bodyVelocity:Destroy() bodyVelocity = nil end
+            if humanoid then humanoid.PlatformStand = false end
         end
         RunService.Heartbeat:Wait()
     end
