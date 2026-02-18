@@ -13,7 +13,7 @@ local MIN_WAIT = 0.2
 local VELOCITY_THRESHOLD = 35
 local COIN_TYPE_TO_FARM = "Coin"
 local SAFETY_DISTANCE = 15 -- Radius to trigger hiding
-local HIDE_DEPTH = -20     -- How far underground to go
+local HIDE_DEPTH = -50    -- Underground depth for safety
 
 -- REMOTES
 local GameplayRemotes = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("Gameplay")
@@ -27,8 +27,10 @@ local collectedCount = 0
 local currentMax = 50 
 local playerRoles = {}
 local isHiding = false
+local isInRound = false
+local lastHrpPos = hrp.Position
 
---- ### 1. HIGHLIGHT LOGIC ### ---
+--- ### 1. VISUALS (ESP) ### ---
 local function applyHighlights()
     for name, data in pairs(playerRoles) do
         local targetPlayer = Players:FindFirstChild(name)
@@ -53,6 +55,20 @@ local function applyHighlights()
     end
 end
 
+local function applyGunESP()
+    local gun = workspace:FindFirstChild("GunDrop")
+    if gun then
+        local handle = gun:FindFirstChild("Handle") or gun:FindFirstChildWhichIsA("BasePart")
+        if handle and not handle:FindFirstChild("GunHighlight") then
+            local highlight = Instance.new("Highlight")
+            highlight.Name = "GunHighlight"
+            highlight.Parent = handle
+            highlight.FillColor = Color3.fromRGB(255, 215, 0)
+            highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+        end
+    end
+end
+
 local function clearHighlights()
     for _, p in pairs(Players:GetPlayers()) do
         if p.Character and p.Character:FindFirstChild("RoleHighlight") then
@@ -65,11 +81,15 @@ end
 RoundStartEvent.OnClientEvent:Connect(function(timer, roles)
     playerRoles = roles
     applyHighlights()
+    isInRound = true
+    collectedCount = 0
+    collectedCoins = {}
 end)
 
 RoundEndEvent.OnClientEvent:Connect(function()
     playerRoles = {}
     clearHighlights()
+    isInRound = false
     isHiding = false
 end)
 
@@ -93,7 +113,7 @@ local function getMurderer()
     return nil
 end
 
---- ### 3. GUI & SETUP ### ---
+--- ### 3. GUI & CHARACTER SETUP ### ---
 local screenGui = player.PlayerGui:FindFirstChild("PersistentFarmGui")
 if not screenGui then
     screenGui = Instance.new("ScreenGui", player.PlayerGui)
@@ -154,44 +174,49 @@ end
 
 task.spawn(function()
     while true do
-        if getgenv().coinFarm and hrp then
+        if getgenv().coinFarm and isInRound and hrp then
+            applyGunESP()
+            
             local murdererHRP = getMurderer()
             local distToMurd = murdererHRP and (murdererHRP.Position - hrp.Position).Magnitude or math.huge
 
-            -- STEALTH LOGIC: Hide underground if murderer is close
+            -- STEALTH LOGIC
             if distToMurd < SAFETY_DISTANCE then
                 if not isHiding then
+                    lastHrpPos = hrp.Position
                     isHiding = true
                     updateGui()
                 end
-                bodyVelocity.Velocity = Vector3.new(0, 0, 0)
+                bodyVelocity.Velocity = Vector3.zero
                 hrp.CFrame = CFrame.new(hrp.Position.X, HIDE_DEPTH, hrp.Position.Z)
                 task.wait(0.5)
                 continue
             else
                 if isHiding then
                     isHiding = false
-                    -- Pop back up to a reasonable height before resuming
-                    hrp.CFrame = CFrame.new(hrp.Position.X, 10, hrp.Position.Z)
+                    hrp.CFrame = CFrame.new(hrp.Position.X, lastHrpPos.Y, hrp.Position.Z)
                     updateGui()
                 end
             end
 
-            -- Auto-Reset
+            -- AUTO-RESET
             if collectedCount >= currentMax and currentMax > 0 then
                 collectedCount = 0
                 updateGui()
                 if character:FindFirstChild("Humanoid") then character.Humanoid.Health = 0 end
+                isInRound = false
                 task.wait(5)
                 continue
             end
 
+            -- PHYSICS SETUP
             if not bodyVelocity or bodyVelocity.Parent ~= hrp then
                 bodyVelocity = Instance.new("BodyVelocity", hrp)
                 bodyVelocity.MaxForce = Vector3.new(9e9, 9e9, 9e9)
                 character:WaitForChild("Humanoid").PlatformStand = true
             end
 
+            -- MOVEMENT
             local target = getNearestCoin()
             if target and target.Parent then
                 local distance = (target.Position - hrp.Position).Magnitude
@@ -201,7 +226,6 @@ task.spawn(function()
                 task.wait(adaptiveWait)
 
                 while getgenv().coinFarm and target and target.Parent and (target.Position - hrp.Position).Magnitude > 0.5 do
-                    -- Re-check murderer during flight
                     local m = getMurderer()
                     if m and (m.Position - hrp.Position).Magnitude < SAFETY_DISTANCE then break end
                     
