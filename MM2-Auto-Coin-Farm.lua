@@ -177,4 +177,67 @@ end
 
 task.spawn(function()
     while true do
-        character
+        character = player.Character
+        hrp = character and character:FindFirstChild("HumanoidRootPart")
+        
+        if isInRound then updateVisuals() end
+
+        if getgenv().Config.Farm and isInRound and hrp then
+            local mHrp = getMurderer()
+            local distToMurd = mHrp and (mHrp.Position - hrp.Position).Magnitude or math.huge
+            
+            if getgenv().Config.AutoHide and distToMurd < getgenv().Config.SafetyDist then
+                if not isHiding then lastHrpPos = hrp.Position isHiding = true end
+                hrp.CFrame = CFrame.new(hrp.Position.X, getgenv().Config.HideDepth, hrp.Position.Z)
+                task.wait(0.5) continue
+            elseif isHiding then 
+                isHiding = false 
+                hrp.CFrame = CFrame.new(hrp.Position.X, lastHrpPos.Y + 2, hrp.Position.Z) 
+            end
+
+            if collectedCount >= currentMax and currentMax > 0 then
+                if character:FindFirstChild("Humanoid") then character.Humanoid.Health = 0 end
+                isInRound = false task.wait(5) continue
+            end
+
+            if not bodyVelocity or bodyVelocity.Parent ~= hrp then
+                if bodyVelocity then bodyVelocity:Destroy() end
+                bodyVelocity = Instance.new("BodyVelocity", hrp)
+                bodyVelocity.MaxForce = Vector3.new(9e9, 9e9, 9e9)
+                if character:FindFirstChild("Humanoid") then character.Humanoid.PlatformStand = true end
+            end
+
+            local target, shortest = nil, math.huge
+            for _, v in pairs(workspace:GetDescendants()) do
+                if v.Name == "Coin_Server" and not collectedCoins[v] then
+                    local d = (v.Position - hrp.Position).Magnitude
+                    if d < shortest then shortest = d target = v end
+                end
+            end
+
+            if target then
+                local distanceToCoin = (target.Position - hrp.Position).Magnitude
+                -- ADAPTIVE WAIT: Distance / 35 studs per second
+                local adaptiveDelay = math.clamp(distanceToCoin / 35, getgenv().Config.MinWait, 2.5)
+                
+                bodyVelocity.Velocity = Vector3.zero
+                task.wait(adaptiveDelay)
+
+                while getgenv().Config.Farm and target and target.Parent and (target.Position-hrp.Position).Magnitude > 0.5 do
+                    if isHiding or not isInRound then break end
+                    local jitterSpeed = getgenv().Config.Speed + math.random(-3, 3)
+                    bodyVelocity.Velocity = (target.Position - hrp.Position).Unit * jitterSpeed
+                    RunService.Heartbeat:Wait()
+                end
+                
+                if bodyVelocity then bodyVelocity.Velocity = Vector3.zero end
+                collectedCoins[target] = true
+                task.wait(0.1)
+            end
+        else
+            if bodyVelocity then bodyVelocity:Destroy() bodyVelocity = nil end
+            if character and character:FindFirstChild("Humanoid") then character.Humanoid.PlatformStand = false end
+        end
+        RunService.Heartbeat:Wait()
+    end
+end)
