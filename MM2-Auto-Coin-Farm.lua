@@ -5,7 +5,7 @@ local Window = Rayfield:CreateWindow({
     Icon = "audio-waveform",
     LoadingTitle = "Loading bleh :3",
     LoadingSubtitle = "by Frxctured",
-    ShowText = "Open",
+    ShowText = "Menu",
     ConfigurationSaving = { Enabled = false },
 })
 
@@ -15,6 +15,7 @@ getgenv().Config = {
         Active = false,
         Speed = 50,
         MinWait = 0.2,
+        Reset = true,
     },
     ESP = {
         Murderer = false,
@@ -66,6 +67,12 @@ MainTab:CreateSlider({
     Callback = function(Value) getgenv().Config.Farm.Speed = Value end,
 })
 
+MainTab:CreateToggle({
+    Name = "Reset at full bag",
+    CurrentValue = true,
+    Callback = function(Value) getgenv().Config.Farm.Reset = Value end,
+})
+
 
 -- ## ESP TAB ## --
 
@@ -84,7 +91,7 @@ ESPTab:CreateToggle({
 ESPTab:CreateToggle({
     Name = "Show Innocents (only as Murderer)",
     CurrentValue = false,
-    Callback = function(Value) getgenv().Config.ESP.Sheriff = Value end,
+    Callback = function(Value) getgenv().Config.ESP.Innocent = Value end,
 })
 
 ESPTab:CreateToggle({
@@ -175,7 +182,7 @@ RunService.Heartbeat:Connect(function()
         end
     end
 
-    -- RESTORED GUN ESP LOGIC
+    -- GUN ESP LOGIC
     if getgenv().Config.ESP.Gun then
         local gun = workspace:FindFirstChild("GunDrop", true)
         if gun then
@@ -236,8 +243,8 @@ task.spawn(function()
         -- ### STATUS UPDATE LOGIC ### --
         if not getgenv().Config.Farm.Active then
             StatusLabel:Set("Status: Farm Disabled")
-        elseif not isInRound then
-            StatusLabel:Set("Status: Waiting for Round...")
+        elseif inInLobby then
+            StatusLabel:Set("Status: Waiting for next Round...")
         elseif collectedCount >= currentMax then
             StatusLabel:Set("Status: Bag Full - Resetting")
         else
@@ -252,7 +259,7 @@ task.spawn(function()
         if getgenv().Config.Farm.Active and isInRound and not isInLobby and hrp and humanoid and humanoid.Health > 0 then
             
             -- AGGRESSIVE RESET LOGIC
-            if collectedCount >= currentMax and currentMax > 0 then
+            if getgenv().Config.Farm.Reset and collectedCount >= currentMax and currentMax > 0 then
                 humanoid.Health = 0
                 collectedCount = 0
                 isInLobby = true
@@ -279,14 +286,14 @@ task.spawn(function()
 
             if target then
                 local distanceToCoin = (target.Position - hrp.Position).Magnitude
-                local adaptiveDelay = math.clamp(distanceToCoin / 35, getgenv().Config.MinWait, 2.5)
+                local adaptiveDelay = math.clamp(distanceToCoin / 35, getgenv().Config.Farm.MinWait, 2.5)
                 
                 bodyVelocity.Velocity = Vector3.zero
                 task.wait(adaptiveDelay)
 
                 while getgenv().Config.Farm.Active and target and target.Parent and (target.Position-hrp.Position).Magnitude > 0.5 do
-                    if not isInRound or humanoid.Health <= 0 then break end
-                    bodyVelocity.Velocity = (target.Position - hrp.Position).Unit
+                    if isInLobby or humanoid.Health <= 0 then break end
+                    bodyVelocity.Velocity = (target.Position - hrp.Position).Unit * getgenv().Config.Farm.Speed
                     RunService.Heartbeat:Wait()
                 end
                 
