@@ -39,13 +39,15 @@ local collectedCoins = {}
 local isInRound = false
 local isInLobby = true
 local collectedCount = 0
-local currentMax = 50 
+local currentMax = 40 
 local bodyVelocity = nil
 
 -- ### UI TABS & ELEMENTS ### --
 local MainTab = Window:CreateTab("Farming", "hand-coins")
 local ESPTab = Window:CreateTab("ESP", "eye")
 local OtherTab = Window:CreateTab("Other", "info")
+
+local DEBUGTab = Window:CreateTab("Debug", "bug")
 
 
 -- ## MAIN TAB ## --
@@ -115,6 +117,53 @@ OtherTab:CreateButton({
         end
     end,
 })
+
+-- ## DEBUG TAB ## --
+
+DEBUGTab:CreateSection("Live Variables")
+
+local DebugLabels = {
+    RoundResult = DEBUGTab:CreateLabel("Round: ..."),
+    LobbyResult = DEBUGTab:CreateLabel("Lobby: ..."),
+    CoinsResult = DEBUGTab:CreateLabel("Coins: ..."),
+    RolesResult = DEBUGTab:CreateLabel("Roles Found: ..."),
+    FarmResult = DEBUGTab:CreateLabel("Farm Active: ..."),
+    
+    -- Config Debugs
+    CfgSpeed = DEBUGTab:CreateLabel("Cfg Speed: ..."),
+    CfgReset = DEBUGTab:CreateLabel("Cfg Reset: ..."),
+    CfgESPMurder = DEBUGTab:CreateLabel("Cfg ESP Murder: ..."),
+    CfgESPSheriff = DEBUGTab:CreateLabel("Cfg ESP Sheriff: ..."),
+    CfgESPInnocent = DEBUGTab:CreateLabel("Cfg ESP Innocent: ..."),
+    CfgESPGun = DEBUGTab:CreateLabel("Cfg ESP Gun: ...")
+}
+
+task.spawn(function()
+    while true do
+        task.wait(0.5) -- Update every 0.5s to reduce lag
+        pcall(function()
+            -- State Variables
+            DebugLabels.RoundResult:Set("isInRound: " .. tostring(isInRound))
+            DebugLabels.LobbyResult:Set("isInLobby: " .. tostring(isInLobby))
+            DebugLabels.CoinsResult:Set("collectedCount: " .. tostring(collectedCount) .. " / currentMax: " .. tostring(currentMax))
+            
+            local roleCount = 0
+            for _ in pairs(playerRoles) do roleCount = roleCount + 1 end
+            DebugLabels.RolesResult:Set("Roles Found: " .. tostring(roleCount))
+            
+            -- Config Variables
+            local cfg = getgenv().Config
+            DebugLabels.FarmResult:Set("Farm.Active: " .. tostring(cfg.Farm.Active))
+            DebugLabels.CfgSpeed:Set("Farm.Speed: " .. tostring(cfg.Farm.Speed))
+            DebugLabels.CfgReset:Set("Farm.Reset: " .. tostring(cfg.Farm.Reset))
+            
+            DebugLabels.CfgESPMurder:Set("ESP.Murderer: " .. tostring(cfg.ESP.Murderer))
+            DebugLabels.CfgESPSheriff:Set("ESP.Sheriff: " .. tostring(cfg.ESP.Sheriff))
+            DebugLabels.CfgESPInnocent:Set("ESP.Innocent: " .. tostring(cfg.ESP.Innocent))
+            DebugLabels.CfgESPGun:Set("ESP.Gun: " .. tostring(cfg.ESP.Gun))
+        end)
+    end
+end)
 
 
 --- ### 3. AFK ANTI-KICK ### ---
