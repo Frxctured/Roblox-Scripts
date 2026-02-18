@@ -197,7 +197,7 @@ task.spawn(function()
         local humanoid = character and character:FindFirstChild("Humanoid")
         
         -- ### STATUS UPDATE LOGIC ### --
--        if not getgenv().Config.Farm then
+        if not getgenv().Config.Farm then
             StatusLabel:Set("Status: Farm Disabled")
         elseif not isInRound then
             StatusLabel:Set("Status: Waiting for Round...")
