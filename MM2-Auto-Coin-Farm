@@ -27,77 +27,65 @@ local isInRound = false
 local lastHrpPos = hrp.Position
 local bodyVelocity = nil
 
---- ### 1. THE REBUILT UI ### ---
+--- ### 1. THE FRXCTURED UI ### ---
 local screenGui = Instance.new("ScreenGui", player.PlayerGui)
-screenGui.Name = "FrxcturedMM2"
+screenGui.Name = "FrxcturedMM2_Suite"
 screenGui.ResetOnSpawn = false
 
 local main = Instance.new("Frame", screenGui)
-main.Size = UDim2.new(0, 250, 0, 320)
-main.Position = UDim2.new(0.5, -125, 0.2, 0)
+main.Size = UDim2.new(0, 220, 0, 270)
+main.Position = UDim2.new(0.5, -110, 0.3, 0)
 main.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
 main.BorderSizePixel = 0
 main.Active = true
-main.Draggable = true -- Built-in legacy dragging for simplicity
+main.Draggable = true
 Instance.new("UICorner", main)
 
 local title = Instance.new("TextLabel", main)
-title.Size = UDim2.new(1, 0, 0, 40)
+title.Size = UDim2.new(1, 0, 0, 35)
+title.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
 title.Text = "FRXCTURED'S MM2"
-title.TextColor3 = Color3.white
-title.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+title.TextColor3 = Color3.fromRGB(255, 255, 255)
 title.Font = Enum.Font.GothamBold
-title.TextSize = 14
+title.TextSize = 13
 Instance.new("UICorner", title)
 
-local container = Instance.new("Frame", main)
-container.Size = UDim2.new(1, -20, 1, -50)
-container.Position = UDim2.new(0, 10, 0, 45)
-container.BackgroundTransparency = 1
-
-local layout = Instance.new("UIListLayout", container)
-layout.Padding = UDim.new(0, 5)
-layout.HorizontalAlignment = Enum.HorizontalAlignment.Center
-
-local function createToggle(name, configKey)
-    local btn = Instance.new("TextButton", container)
-    btn.Size = UDim2.new(1, 0, 0, 35)
+local function createBtn(text, configKey, yPos)
+    local btn = Instance.new("TextButton", main)
+    btn.Size = UDim2.new(0, 200, 0, 35)
+    btn.Position = UDim2.new(0, 10, 0, yPos)
     btn.Font = Enum.Font.GothamMedium
-    btn.TextSize = 12
+    btn.TextSize = 11
     btn.TextColor3 = Color3.white
+    btn.BorderSizePixel = 0
     Instance.new("UICorner", btn)
-
-    local function updateBtn()
-        local enabled = getgenv().Config[configKey]
-        btn.Text = name .. ": " .. (enabled and "ON" or "OFF")
-        btn.BackgroundColor3 = enabled and Color3.fromRGB(60, 180, 60) or Color3.fromRGB(180, 60, 60)
+    
+    local function update()
+        local val = getgenv().Config[configKey]
+        btn.Text = text .. ": " .. (val and "ON" or "OFF")
+        btn.BackgroundColor3 = val and Color3.fromRGB(45, 120, 45) or Color3.fromRGB(120, 45, 45)
     end
-
+    
     btn.MouseButton1Click:Connect(function()
         getgenv().Config[configKey] = not getgenv().Config[configKey]
-        updateBtn()
-        if configKey == "ESP" and not getgenv().Config.ESP then clearHighlights() end
-    end)
-    
-    updateBtn()
-end
-
--- Manually adding buttons to ensure they appear
-createToggle("Coin Farm", "Farm")
-createToggle("Role ESP", "ESP")
-createToggle("Subtle Innocents", "SubtleESP")
-createToggle("Gun Highlight", "GunESP")
-createToggle("Auto Hide", "AutoHide")
-
---- ### 2. CORE LOGIC ### ---
-
-function clearHighlights()
-    for _, p in pairs(Players:GetPlayers()) do
-        if p.Character and p.Character:FindFirstChild("RoleHighlight") then 
-            p.Character.RoleHighlight:Destroy() 
+        update()
+        if configKey == "ESP" and not getgenv().Config.ESP then
+             for _, p in pairs(Players:GetPlayers()) do
+                if p.Character and p.Character:FindFirstChild("RoleHighlight") then p.Character.RoleHighlight:Destroy() end
+             end
         end
-    end
+    end)
+    update()
 end
+
+-- Absolute Positioning for Buttons
+createBtn("Coin Farm", "Farm", 45)
+createBtn("Role ESP", "ESP", 90)
+createBtn("Innocent ESP", "SubtleESP", 135)
+createBtn("Gun Highlight", "GunESP", 180)
+createBtn("Auto Hide", "AutoHide", 225)
+
+--- ### 2. ENGINE LOGIC ### ---
 
 local function applyHighlights()
     if not getgenv().Config.ESP then return end
@@ -133,13 +121,18 @@ GameplayRemotes.RoundStart.OnClientEvent:Connect(function(_, roles)
     playerRoles = roles 
     isInRound = true 
     applyHighlights() 
+    print("FrxcturedMM2: Round Start Detected")
 end)
+
 GameplayRemotes.RoundEndFade.OnClientEvent:Connect(function() 
     playerRoles = {} 
     isInRound = false 
     isHiding = false 
-    clearHighlights() 
+    for _, p in pairs(Players:GetPlayers()) do
+        if p.Character and p.Character:FindFirstChild("RoleHighlight") then p.Character.RoleHighlight:Destroy() end
+    end
 end)
+
 GameplayRemotes.CoinCollected.OnClientEvent:Connect(function(_, cur, max) 
     collectedCount = tonumber(cur) or 0
     currentMax = tonumber(max) or 50
@@ -149,23 +142,19 @@ local function getMurderer()
     for name, data in pairs(playerRoles) do
         if data.Role == "Murderer" and name ~= player.Name then
             local p = Players:FindFirstChild(name)
-            if p and p.Character and p.Character:FindFirstChild("HumanoidRootPart") then 
-                return p.Character.HumanoidRootPart 
-            end
+            if p and p.Character and p.Character:FindFirstChild("HumanoidRootPart") then return p.Character.HumanoidRootPart end
         end
     end
     return nil
 end
 
---- ### 3. THE ENGINE ### ---
 task.spawn(function()
     while true do
-        -- Only run if toggled AND in a round
         if getgenv().Config.Farm and isInRound and hrp then
             local mHrp = getMurderer()
             local dist = mHrp and (mHrp.Position - hrp.Position).Magnitude or math.huge
 
-            -- Auto-Hide Logic
+            -- Auto-Hide logic
             if getgenv().Config.AutoHide and dist < getgenv().Config.SafetyDist then
                 if not isHiding then lastHrpPos = hrp.Position isHiding = true end
                 hrp.CFrame = CFrame.new(hrp.Position.X, getgenv().Config.HideDepth, hrp.Position.Z)
@@ -188,7 +177,6 @@ task.spawn(function()
                 if character:FindFirstChild("Humanoid") then character.Humanoid.PlatformStand = true end
             end
 
-            -- Find Coins
             local target = nil
             local shortest = math.huge
             for _, v in pairs(workspace:GetDescendants()) do
@@ -199,7 +187,7 @@ task.spawn(function()
             end
 
             if target then
-                task.wait(0.2) -- Small delay between coins
+                task.wait(0.2)
                 while getgenv().Config.Farm and target and target.Parent and (target.Position-hrp.Position).Magnitude > 0.5 do
                     if isHiding or not isInRound then break end
                     bodyVelocity.Velocity = (target.Position - hrp.Position).Unit * getgenv().Config.Speed
