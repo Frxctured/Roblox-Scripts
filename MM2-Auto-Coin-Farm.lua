@@ -42,7 +42,7 @@ local hrp = character:WaitForChild("HumanoidRootPart")
 
 local playerRoles = {}
 local collectedCoins = {}
-local isActiveRound = false
+local isActiveRound = true
 local isInLobby = true
 local collectedCount = 0
 local currentMax = 40 
@@ -143,6 +143,19 @@ ESPTab:CreateToggle({
 
 
 -- ## OTHER TAB ## --
+
+OtherTab:CreateButton({
+    Name = "Get Gun",
+    Callback = function()
+        local gun = workspace:FindFirstChild("GunDrop", true)
+        if gun then
+            local oldCFrame = hrp.CFrame
+            hrp.CFrame = gun.CFrame
+            task.wait(0.1)
+            hrp.CFrame = oldCFrame
+        end
+    end,
+})
 
 OtherTab:CreateButton({
     Name = "Server Hop",
@@ -320,25 +333,20 @@ local function KillAll()
     character.Humanoid:EquipTool(knife)
 
     for _, target in ipairs(Players:GetPlayers()) do
-        if target ~= player and target.Character and target.Character:FindFirstChild("HumanoidRootPart") then
-            -- Check if target is actually in the round (not in lobby)
-            -- We can assume if their character exists and they aren't in a specific 'Lobby' folder or area, they are in game.
-            -- A better check is usually distance from the map center or checking if they have weapons/are innocent.
-            
-            -- Simple check: If they are alive and we are in a round
+        if not isActiveRound or not cfg.AutoWin.Murderer or not character or character.Humanoid.Health <= 0 then break end
+        
+        if target ~= player and target.Character then
+            local thrp = target.Character:FindFirstChild("HumanoidRootPart")
             local thumanoid = target.Character:FindFirstChild("Humanoid")
-            if thumanoid and thumanoid.Health > 0 then
-                -- Teleport behind them
-                hrp.CFrame = target.Character.HumanoidRootPart.CFrame * CFrame.new(0, 0, 2)
+            
+            if thrp and thumanoid and thumanoid.Health > 0 and playerRoles[target.Name] then
+
+                hrp.CFrame = thrp.CFrame * CFrame.new(0, 0, 2)
+                task.wait() 
+                
+                if knife.Parent ~= character then character.Humanoid:EquipTool(knife) end
+                knife:Activate()
                 task.wait()
-                -- Slash
-                if knife.Parent == character then
-                    knife:Activate()
-                else
-                    character.Humanoid:EquipTool(knife)
-                    knife:Activate()
-                end
-                task.wait(0.1)
             end
         end
     end
@@ -347,8 +355,12 @@ end
 task.spawn(function()
     while true do
         if isActiveRound and cfg.AutoWin.Murderer then
-            local myRole = getRole(player)
-            if myRole == "Murderer" then
+            local isMurderer = false
+            if player.Backpack:FindFirstChild("Knife") or (character and character:FindFirstChild("Knife")) then
+                isMurderer = true
+            end
+
+            if isMurderer then
                 KillAll() 
             end
         end
