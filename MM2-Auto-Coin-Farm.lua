@@ -149,7 +149,7 @@ RunService.Heartbeat:Connect(function()
 
     -- RESTORED GUN ESP LOGIC
     if getgenv().Config.GunESP then
-        local gun = workspace:FindFirstChild("GunDrop")
+        local gun = workspace:FindFirstChild("GunDrop", true)
         if gun then
             -- local handle = gun:FindFirstChild("Handle") or gun:FindFirstChildWhichIsA("BasePart")
             -- if handle and not handle:FindFirstChild("GunHighlight") then
