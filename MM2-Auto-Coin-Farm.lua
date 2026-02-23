@@ -311,8 +311,12 @@ RunService.Heartbeat:Connect(function()
             hl.FillColor = Color3.fromRGB(255, 0, 0)
             hl.FillTransparency = 0.5
             hl.Enabled = true
-        elseif (pRole == "Sheriff" or pRole == "Hero") and cfg.ESP.Sheriff then
+        elseif pRole == "Sheriff" and cfg.ESP.Sheriff then
             hl.FillColor = Color3.fromRGB(0, 120, 255)
+            hl.FillTransparency = 0.5
+            hl.Enabled = true
+        elseif pRole == "Hero" and cfg.ESP.Sheriff then
+            hl.FillColor = Color3.fromRGB(255, 215, 0)
             hl.FillTransparency = 0.5
             hl.Enabled = true
         elseif amIMurderer and (pRole == "Innocent" or pRole == "inno") and cfg.ESP.Innocent  then
@@ -399,8 +403,12 @@ GameplayRemotes:WaitForChild("PlayerDataChanged").OnClientEvent:Connect(function
             end
             
             -- Process Data if valid
+            -- User specified NO MAPPING is needed. We trust the remote provides correct role names.
             if playerName and type(data) == "table" then
                 if data.Role then
+                    -- Safeguard tables
+                    if not playerRoles then playerRoles = {} end
+
                     local role = data.Role
                     playerRoles[playerName] = role
                     
@@ -426,8 +434,8 @@ GameplayRemotes:WaitForChild("PlayerDataChanged").OnClientEvent:Connect(function
     end
 end)
 
-GameplayRemotes.RoundStart.OnClientEvent:Connect(function() 
-    -- playerRoles = roles 
+GameplayRemotes.RoundStart.OnClientEvent:Connect(function(_, roles) 
+    playerRoles = roles
     deadPlayers = {}
     isActiveRound = true 
     isInLobby = false
