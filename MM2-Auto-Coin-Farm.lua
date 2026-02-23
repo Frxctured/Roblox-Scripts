@@ -387,10 +387,17 @@ local GameplayRemotes = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("
 -- New Listener for Early Role Detection via PlayerDataChanged
 GameplayRemotes:WaitForChild("PlayerDataChanged").OnClientEvent:Connect(function(arg1)
     if type(arg1) == "table" then
-        -- Arg1 is the table of data (roles, coins, etc.)
-        -- We'll assume for now it keys player names to role strings or data tables
-        -- But first, let's print it to F9 to be sure
-        warn("MM2 PLAYER DATA CHANGED:", arg1) 
+        -- Print full table content for debugging
+        warn("--- PLAYER DATA CHANGED TABLE DUMP ---")
+        for k, v in pairs(arg1) do
+            print("Key:", k, "| Value:", v)
+            if type(v) == "table" then
+                for subK, subV in pairs(v) do
+                    print("    SubKey:", subK, "| SubValue:", subV)
+                end
+            end
+        end
+        warn("----------------------------------------")
         
         -- If this table contains role definitions, we can update our list early
         -- MM2 often uses this structure: { [PlayerName] = {Role = "Murderer", ...} }
