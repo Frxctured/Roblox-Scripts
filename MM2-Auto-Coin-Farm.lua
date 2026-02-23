@@ -321,15 +321,15 @@ RunService.Heartbeat:Connect(function()
         local hl = p.Character:FindFirstChild("RoleHighlight") or Instance.new("Highlight", p.Character)
         hl.Name = "RoleHighlight"
         
-        if pRole == "Murderer" and cfg.ESP.Murderer then
+        if pRole == "Murderer" or pRole == "murd" and cfg.ESP.Murderer then
             hl.FillColor = Color3.fromRGB(255, 0, 0)
             hl.FillTransparency = 0.5
             hl.Enabled = true
-        elseif pRole == "Sheriff" and cfg.ESP.Sheriff then
+        elseif (pRole == "Sheriff" or pRole == "sheriff" or pRole == "hero") and cfg.ESP.Sheriff then
             hl.FillColor = Color3.fromRGB(0, 120, 255)
             hl.FillTransparency = 0.5
             hl.Enabled = true
-        elseif amIMurderer and cfg.ESP.Innocent  then
+        elseif amIMurderer and (pRole == "Innocent" or pRole == "inno") and cfg.ESP.Innocent  then
             hl.FillColor = Color3.fromRGB(255, 255, 255)
             hl.FillTransparency = 0.8 
             hl.OutlineColor = Color3.fromRGB(255, 255, 255)
@@ -399,59 +399,41 @@ end)
 local GameplayRemotes = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("Gameplay")
 
 -- New Listener for Early Role Detection via PlayerDataChanged
-GameplayRemotes:WaitForChild("PlayerDataChanged").OnClientEvent:Connect(function(...)
-    local args = {...}
-    
-    -- REACTIVATED LOGGING
-    warn("--- PLAYER DATA CHANGED DUMP ---")
-    for i, v in ipairs(args) do
-        print("Arg " .. i .. ":", v, "Type:", typeof(v))
-        if type(v) == "table" then
-            for k, subV in pairs(v) do
-                print("   Key:", k, "| Value:", subV)
-            end
-        end
-    end
-    warn("--------------------------------")
-    
-    local data = nil
-    local playerName = nil
-    
-    -- Robust Argument Scanning
-    for i, v in ipairs(args) do
-        if typeof(v) == "Instance" and v:IsA("Player") then
-            playerName = v.Name
-        elseif type(v) == "string" and Players:FindFirstChild(v) then
-            playerName = v
-        elseif type(v) == "table" then
-            if v.Role or v.Dead ~= nil or v.Killed ~= nil then
-                data = v
-            end
-        end
-    end
-
-    if data and playerName then
-        if data.Role then
-            local role = data.Role
+GameplayRemotes:WaitForChild("PlayerDataChanged").OnClientEvent:Connect(function(arg1)
+    if type(arg1) == "table" then
+        for key, data in pairs(arg1) do
+            local playerName = nil
             
-            playerRoles[playerName] = role
-            
-            -- Console Notification for Important Roles
-            if role == "Murderer" then
-                warn("!!! MURDERER DETECTED (Remote): " .. playerName)
-            elseif role == "Sheriff" then
-                warn("!!! SHERIFF DETECTED (Remote): " .. playerName)
+            -- Resolve Key to Player Name
+            if typeof(key) == "Instance" and key:IsA("Player") then
+                playerName = key.Name
+            elseif type(key) == "string" then
+                -- Check if this string is a player name (simple check)
+                 playerName = key
             end
-
-            isActiveRound = true
+            
+            -- Process Data if valid
+            -- User specified NO MAPPING is needed. We trust the remote provides correct role names.
+            if playerName and type(data) == "table" then
+                if data.Role then
+                    local role = data.Role
+                    playerRoles[playerName] = role
+                    
+                    if role == "Murderer" or role == "murd" then
+                         warn("!!! MURDERER DETECTED (Remote): " .. playerName)
+                    elseif role == "Sheriff" or role == "sheriff" or role == "hero" then
+                         warn("!!! SHERIFF DETECTED (Remote): " .. playerName)
+                    end
+                    
+                     isActiveRound = true
+                end
+                
+                -- Handle Dead/Killed updates if needed
+                if data.Dead == true then
+                    -- Could update a separate status table here if desired
+                end
+            end
         end
-
-        if data.Dead == true then
-             -- Logic could be added here to remove ESP for dead players
-        end
-    else
-        -- If we failed to find player/data, dump args for debugging
-        -- warn("PlayerDataChanged: Could not parse args:", unpack(args))
     end
 end)
 
