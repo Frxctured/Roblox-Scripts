@@ -289,25 +289,11 @@ RunService.Heartbeat:Connect(function()
         return 
     end
     
-    -- Hybrid Role Detection: Prioritize Remote Data, Fallback to Weapons
     local function getRole(p)
-        -- 1. Check Remote Data (Primary)
+        if deadPlayers[p.Name] then return "Dead" end -- Ignore dead players
         if playerRoles[p.Name] then
-            -- Verify validity (sometimes remote data gets stale if not cleared properly)
             return playerRoles[p.Name]
         end
-
-        -- 2. Fallback: Weapon Check (Secondary)
-        if p.Backpack:FindFirstChild("Knife") or (p.Character and p.Character:FindFirstChild("Knife")) then
-            playerRoles[p.Name] = "Murderer" -- Cache it to stop checking
-            warn("Murderer Detected (Backpack): " .. p.Name)
-            return "Murderer"
-        elseif p.Backpack:FindFirstChild("Gun") or (p.Character and p.Character:FindFirstChild("Gun")) then
-            playerRoles[p.Name] = "Sheriff" -- Cache it
-            warn("Sheriff Detected (Backpack): " .. p.Name)
-            return "Sheriff"
-        end
-        
         return "Innocent" 
     end
 
@@ -321,11 +307,11 @@ RunService.Heartbeat:Connect(function()
         local hl = p.Character:FindFirstChild("RoleHighlight") or Instance.new("Highlight", p.Character)
         hl.Name = "RoleHighlight"
         
-        if pRole == "Murderer" or pRole == "murd" and cfg.ESP.Murderer then
+        if pRole == "Murderer" and cfg.ESP.Murderer then
             hl.FillColor = Color3.fromRGB(255, 0, 0)
             hl.FillTransparency = 0.5
             hl.Enabled = true
-        elseif (pRole == "Sheriff" or pRole == "sheriff" or pRole == "hero") and cfg.ESP.Sheriff then
+        elseif (pRole == "Sheriff" or pRole == "Hero") and cfg.ESP.Sheriff then
             hl.FillColor = Color3.fromRGB(0, 120, 255)
             hl.FillTransparency = 0.5
             hl.Enabled = true
@@ -409,36 +395,40 @@ GameplayRemotes:WaitForChild("PlayerDataChanged").OnClientEvent:Connect(function
                 playerName = key.Name
             elseif type(key) == "string" then
                 -- Check if this string is a player name (simple check)
-                 playerName = key
+                playerName = key
             end
             
             -- Process Data if valid
-            -- User specified NO MAPPING is needed. We trust the remote provides correct role names.
             if playerName and type(data) == "table" then
                 if data.Role then
                     local role = data.Role
                     playerRoles[playerName] = role
                     
                     if role == "Murderer" or role == "murd" then
-                         warn("!!! MURDERER DETECTED (Remote): " .. playerName)
+                        warn("!!! MURDERER DETECTED (Remote): " .. playerName)
                     elseif role == "Sheriff" or role == "sheriff" or role == "hero" then
-                         warn("!!! SHERIFF DETECTED (Remote): " .. playerName)
+                        warn("!!! SHERIFF DETECTED (Remote): " .. playerName)
                     end
                     
-                     isActiveRound = true
+                    isActiveRound = true
                 end
                 
-                -- Handle Dead/Killed updates if needed
-                if data.Dead == true then
-                    -- Could update a separate status table here if desired
+                -- Handle Dead/Killed updates
+                if data.Dead == true or data.Killed == true then
+                    deadPlayers[playerName] = true
+                    -- Remove highlight immediately if they die
+                    if Players:FindFirstChild(playerName) and Players[playerName].Character and Players[playerName].Character:FindFirstChild("RoleHighlight") then
+                        Players[playerName].Character.RoleHighlight:Destroy()
+                    end
                 end
             end
         end
     end
 end)
 
-GameplayRemotes.RoundStart.OnClientEvent:Connect(function(_, roles) 
-    playerRoles = roles 
+GameplayRemotes.RoundStart.OnClientEvent:Connect(function() 
+    -- playerRoles = roles 
+    deadPlayers = {}
     isActiveRound = true 
     isInLobby = false
     collectedCoins = {}
@@ -447,7 +437,9 @@ end)
 
 GameplayRemotes.RoundEndFade.OnClientEvent:Connect(function() 
     playerRoles = {} 
+    deadPlayers = {}
     isActiveRound = false 
+    isInLobby = true 
     clearHighlights() 
     collectedCount = 0
 end)
