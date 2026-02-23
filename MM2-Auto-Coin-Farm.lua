@@ -27,10 +27,10 @@ getgenv().Config = {
         Sheriff = false,
         Innocent = false,
         Gun = false,
-    } --,
-    --Other = {
-    --    AutoGetGun = false,
-    --}
+    } ,
+    Other = {
+        AutoGetGun = false,
+    },
 }
 local cfg = getgenv().Config
 
@@ -147,13 +147,11 @@ ESPTab:CreateToggle({
 
 -- ## OTHER TAB ## --
 
---[[
 OtherTab:CreateToggle({
     Name = "Auto Get Gun",
     CurrentValue = false,
     Callback = function(Value) cfg.Other.AutoGetGun = Value end,
 })
-]]--
 
 OtherTab:CreateButton({
     Name = "Get Gun",
@@ -558,7 +556,7 @@ task.spawn(function()
         RunService.Heartbeat:Wait()
     end
 end)
---[[
+
 task.spawn(function()
     while true do
         task.wait(0.2)
