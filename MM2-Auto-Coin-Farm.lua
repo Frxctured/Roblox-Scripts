@@ -146,13 +146,13 @@ ESPTab:CreateToggle({
 
 
 -- ## OTHER TAB ## --
---[[
+
 OtherTab:CreateToggle({
     Name = "Auto Get Gun",
     CurrentValue = false,
     Callback = function(Value) cfg.Other.AutoGetGun = Value end,
 })
-]]--
+
 
 OtherTab:CreateButton({
     Name = "Get Gun",
@@ -557,7 +557,7 @@ task.spawn(function()
         RunService.Heartbeat:Wait()
     end
 end)
-
+--[[
 task.spawn(function()
     while true do
         task.wait(0.2)
