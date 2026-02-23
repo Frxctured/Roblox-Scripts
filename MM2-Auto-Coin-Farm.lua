@@ -170,24 +170,31 @@ OtherTab:CreateButton({
     Name = "Server Hop",
     Callback = function()
         task.spawn(function()
-            local TeleportService = game:GetService("TeleportService")
-            local HttpService = game:GetService("HttpService")
-
-            local Servers = "https://games.roblox.com/v1/games/" .. game.PlaceId .. "/servers/Public?sortOrder=Asc&limit=100"
-            local Server, Next = nil, nil
-            local function ListServers(cursor)
-                local Raw = game:HttpGet(Servers .. ((cursor and "&cursor=" .. cursor) or ""))
-                return HttpService:JSONDecode(Raw)
-            end
-
-            repeat
-                local Servers = ListServers(Next)
-                Server = Servers.data[math.random(1, (#Servers.data / 3))]
-                Next = Servers.nextPageCursor
-            until Server
-
-            if Server.playing < Server.maxPlayers and Server.id ~= game.JobId then
-                TeleportService:TeleportToPlaceInstance(game.PlaceId, Server.id, game.Players.LocalPlayer)
+            local success, err = pcall(function()
+                local Http = game:GetService("HttpService")
+                local TPS = game:GetService("TeleportService")
+                local Api = "https://games.roblox.com/v1/games/"
+                local _place = game.PlaceId
+                local _servers = Api.._place.."/servers/Public?sortOrder=Desc&limit=100"
+                
+                local List = Http:JSONDecode(game:HttpGet(_servers))
+                if List and List.data then
+                    for i,v in next, List.data do
+                        if v.playing < v.maxPlayers and v.id ~= game.JobId then
+                            TPS:TeleportToPlaceInstance(_place, v.id, player)
+                            return
+                        end
+                    end
+                end
+            end)
+            if not success then 
+                warn("Server Hop Failed: " .. tostring(err)) 
+                Rayfield:Notify({
+                    Title = "Serverhop Failed",
+                    Content = "Error content: ".. tostring(err),
+                    Duration = 3,
+                    Image = "circle-x",
+                })
             end
         end)
     end,
