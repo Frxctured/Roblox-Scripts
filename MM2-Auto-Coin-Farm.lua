@@ -290,7 +290,7 @@ RunService.Heartbeat:Connect(function()
     end
     
     local function getRole(p)
-        if deadPlayers[p.Name] then return "Dead" end -- Ignore dead players
+        -- if deadPlayers[p.Name] then return "Dead" end -- Ignore dead players
         if playerRoles[p.Name] then
             return playerRoles[p.Name]
         end
@@ -406,8 +406,6 @@ GameplayRemotes:WaitForChild("PlayerDataChanged").OnClientEvent:Connect(function
             -- User specified NO MAPPING is needed. We trust the remote provides correct role names.
             if playerName and type(data) == "table" then
                 if data.Role then
-                    -- Safeguard tables
-                    if not playerRoles then playerRoles = {} end
 
                     local role = data.Role
                     playerRoles[playerName] = role
@@ -435,7 +433,7 @@ GameplayRemotes:WaitForChild("PlayerDataChanged").OnClientEvent:Connect(function
 end)
 
 GameplayRemotes.RoundStart.OnClientEvent:Connect(function(_, roles) 
-    playerRoles = roles
+    -- playerRoles = roles
     deadPlayers = {}
     isActiveRound = true 
     isInLobby = false
