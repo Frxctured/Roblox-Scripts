@@ -247,6 +247,19 @@ task.spawn(function()
     end
 end)
 
+-- DEBUG: Log all Gameplay Remote Calls
+for _, remote in ipairs(ReplicatedStorage.Remotes.Gameplay:GetChildren()) do
+    if remote:IsA("RemoteEvent") then
+        remote.OnClientEvent:Connect(function(...)
+            local args = {...}
+            print("REMOTE EVENT FIRED: " .. remote.Name)
+            for i, v in ipairs(args) do
+                print("  Arg " .. i .. ": ", v)
+            end
+            print("---------------------------------------------------")
+        end)
+    end
+end
 
 --- ### 3. AFK ANTI-KICK ### ---
 -- Prevents 20-minute idle kick
@@ -371,13 +384,19 @@ end)
 --- ### 5. REMOTE LISTENERS ### ---
 local GameplayRemotes = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("Gameplay")
 
-GameplayRemotes:WaitForChild("RoleSelect").OnClientEvent:Connect(function(_, roles)
-    if roles then
-        playerRoles = roles
-        isActiveRound = true
-        isInLobby = false
-        collectedCoins = {}
-        collectedCount = 0
+GameplayRemotes:WaitForChild("RoleSelect").OnClientEvent:Connect(function(...)
+    local args = {...}
+    
+    for _, arg in pairs(args) do
+        if type(arg) == "table" then
+            playerRoles = arg
+            isActiveRound = true
+            isInLobby = false
+            collectedCoins = {}
+            collectedCount = 0
+            warn("MM2 EARLY ROLE DETECTED:", arg) -- Debug to F9 console
+            break
+        end
     end
 end)
 
