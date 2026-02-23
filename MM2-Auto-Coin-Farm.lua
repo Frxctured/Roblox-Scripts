@@ -385,31 +385,29 @@ end)
 local GameplayRemotes = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("Gameplay")
 
 -- New Listener for Early Role Detection via PlayerDataChanged
-GameplayRemotes:WaitForChild("PlayerDataChanged").OnClientEvent:Connect(function(arg1)
-    if type(arg1) == "table" then
-        -- Print full table content for debugging
-        warn("--- PLAYER DATA CHANGED TABLE DUMP ---")
-        for k, v in pairs(arg1) do
-            print("Key:", k, "| Value:", v)
-            if type(v) == "table" then
-                for subK, subV in pairs(v) do
-                    print("    SubKey:", subK, "| SubValue:", subV)
-                end
+GameplayRemotes:WaitForChild("PlayerDataChanged").OnClientEvent:Connect(function(playerArg, data)
+    -- Normalize player name
+    local playerName = tostring(playerArg)
+    
+    if type(data) == "table" then
+        if data.Role then
+            local role = data.Role
+            -- if role == "Murderer" then role = "Murderer" end
+            -- if role == "Sheriff" or role == "Hero" then role = "Sheriff" end
+            -- if role == "Innocent" then role = "Innocent" end
+            
+            playerRoles[playerName] = role
+            
+            -- If we receive role data, the round has effectively "started" for logic purposes
+            if role == "Murderer" or role == "Sheriff" then
+                isActiveRound = true
+                isInLobby = false
             end
         end
-        warn("----------------------------------------")
-        
-        -- If this table contains role definitions, we can update our list early
-        -- MM2 often uses this structure: { [PlayerName] = {Role = "Murderer", ...} }
-        -- or just { [PlayerName] = "Murderer" }
-        -- We will attempt to merge distinct role strings found
-        for key, val in pairs(arg1) do
-             -- This is placeholder logic until we see the structure in console
-             if type(val) == "string" and (val == "Murderer" or val == "Sheriff" or val == "Innocent") then
-                 playerRoles[key] = val
-             elseif type(val) == "table" and val.Role then
-                 playerRoles[key] = val.Role
-             end
+
+        -- Handle Dead/Killed states (optional but good for cleanup)
+        if data.Dead == true then
+             -- Logic could be added here to remove ESP for dead players
         end
     end
 end)
