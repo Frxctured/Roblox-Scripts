@@ -371,6 +371,16 @@ end)
 --- ### 5. REMOTE LISTENERS ### ---
 local GameplayRemotes = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("Gameplay")
 
+GameplayRemotes:WaitForChild("RoleSelect").OnClientEvent:Connect(function(_, roles)
+    if roles then
+        playerRoles = roles
+        isActiveRound = true
+        isInLobby = false
+        collectedCoins = {}
+        collectedCount = 0
+    end
+end)
+
 GameplayRemotes.RoundStart.OnClientEvent:Connect(function(_, roles) 
     playerRoles = roles 
     isActiveRound = true 
