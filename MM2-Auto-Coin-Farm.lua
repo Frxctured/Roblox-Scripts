@@ -399,16 +399,28 @@ end)
 local GameplayRemotes = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("Gameplay")
 
 -- New Listener for Early Role Detection via PlayerDataChanged
-GameplayRemotes:WaitForChild("PlayerDataChanged").OnClientEvent:Connect(function(playerArg, data)
-    -- Normalize player name
-    local playerName = tostring(playerArg)
+GameplayRemotes:WaitForChild("PlayerDataChanged").OnClientEvent:Connect(function(...)
+    local args = {...}
     
-    if type(data) == "table" then
+    local data = nil
+    local playerName = nil
+    
+    -- Robust Argument Scanning
+    for i, v in ipairs(args) do
+        if typeof(v) == "Instance" and v:IsA("Player") then
+            playerName = v.Name
+        elseif type(v) == "string" and Players:FindFirstChild(v) then
+            playerName = v
+        elseif type(v) == "table" then
+            if v.Role or v.Dead ~= nil or v.Killed ~= nil then
+                data = v
+            end
+        end
+    end
+
+    if data and playerName then
         if data.Role then
             local role = data.Role
-            if role == "murd" then role = "Murderer" end
-            if role == "sheriff" or role == "hero" then role = "Sheriff" end
-            if role == "inno" then role = "Innocent" end
             
             playerRoles[playerName] = role
             
@@ -419,15 +431,15 @@ GameplayRemotes:WaitForChild("PlayerDataChanged").OnClientEvent:Connect(function
                 warn("!!! SHERIFF DETECTED (Remote): " .. playerName)
             end
 
-            -- If we receive role data, the round has effectively "started" for logic purposes
-            -- We set isActiveRound to true so ESP can draw immediately
             isActiveRound = true
         end
 
-        -- Handle Dead/Killed states (optional but good for cleanup)
         if data.Dead == true then
              -- Logic could be added here to remove ESP for dead players
         end
+    else
+        -- If we failed to find player/data, dump args for debugging
+        -- warn("PlayerDataChanged: Could not parse args:", unpack(args))
     end
 end)
 
