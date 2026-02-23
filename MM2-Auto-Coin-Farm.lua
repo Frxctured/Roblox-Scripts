@@ -293,14 +293,18 @@ RunService.Heartbeat:Connect(function()
     local function getRole(p)
         -- 1. Check Remote Data (Primary)
         if playerRoles[p.Name] then
+            -- Verify validity (sometimes remote data gets stale if not cleared properly)
             return playerRoles[p.Name]
         end
 
         -- 2. Fallback: Weapon Check (Secondary)
-        -- Useful if the remote missed someone or for dropped guns picked up by innocents
         if p.Backpack:FindFirstChild("Knife") or (p.Character and p.Character:FindFirstChild("Knife")) then
+            playerRoles[p.Name] = "Murderer" -- Cache it to stop checking
+            warn("Murderer Detected (Backpack): " .. p.Name)
             return "Murderer"
         elseif p.Backpack:FindFirstChild("Gun") or (p.Character and p.Character:FindFirstChild("Gun")) then
+            playerRoles[p.Name] = "Sheriff" -- Cache it
+            warn("Sheriff Detected (Backpack): " .. p.Name)
             return "Sheriff"
         end
         
@@ -402,18 +406,22 @@ GameplayRemotes:WaitForChild("PlayerDataChanged").OnClientEvent:Connect(function
     if type(data) == "table" then
         if data.Role then
             local role = data.Role
-            -- if role == "Murderer" then role = "Murderer" end
-            -- if role == "Sheriff" or role == "Hero" then role = "Sheriff" end
-            -- if role == "Innocent" then role = "Innocent" end
+            if role == "murd" then role = "Murderer" end
+            if role == "sheriff" or role == "hero" then role = "Sheriff" end
+            if role == "inno" then role = "Innocent" end
             
             playerRoles[playerName] = role
             
+            -- Console Notification for Important Roles
+            if role == "Murderer" then
+                warn("!!! MURDERER DETECTED (Remote): " .. playerName)
+            elseif role == "Sheriff" then
+                warn("!!! SHERIFF DETECTED (Remote): " .. playerName)
+            end
+
             -- If we receive role data, the round has effectively "started" for logic purposes
             -- We set isActiveRound to true so ESP can draw immediately
             isActiveRound = true
-            
-            -- Optional: If you want farming to wait until actual game start, keep isInLobby = true until RoundStart
-            -- But for ESP, we just need isActiveRound = true
         end
 
         -- Handle Dead/Killed states (optional but good for cleanup)
