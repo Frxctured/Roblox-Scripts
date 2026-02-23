@@ -560,7 +560,7 @@ end)
 task.spawn(function()
     while true do
         task.wait(0.2)
-        if cfg.Other.AutoGetGun and isActiveRound and character and hrp then
+        if cfg.Other.AutoGetGun and isActiveRound and not isInLobby and character and hrp then
             local gun = workspace:FindFirstChild("GunDrop", true)
             if gun and (player.Backpack:FindFirstChild("Knife") == nil and (character:FindFirstChild("Knife") == nil)) then
                 -- Only get gun if not murderer (optional check, but good for safety)
