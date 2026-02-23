@@ -402,6 +402,18 @@ local GameplayRemotes = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("
 GameplayRemotes:WaitForChild("PlayerDataChanged").OnClientEvent:Connect(function(...)
     local args = {...}
     
+    -- REACTIVATED LOGGING
+    warn("--- PLAYER DATA CHANGED DUMP ---")
+    for i, v in ipairs(args) do
+        print("Arg " .. i .. ":", v, "Type:", typeof(v))
+        if type(v) == "table" then
+            for k, subV in pairs(v) do
+                print("   Key:", k, "| Value:", subV)
+            end
+        end
+    end
+    warn("--------------------------------")
+    
     local data = nil
     local playerName = nil
     
