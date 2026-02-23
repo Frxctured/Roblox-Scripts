@@ -42,7 +42,7 @@ local hrp = character:WaitForChild("HumanoidRootPart")
 
 local playerRoles = {}
 local collectedCoins = {}
-local isActiveRound = false -- Initialize as false, wait for Role Data
+local isActiveRound = true
 local isInLobby = true
 local collectedCount = 0
 local currentMax = 40 
