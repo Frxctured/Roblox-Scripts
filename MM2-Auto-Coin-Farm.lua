@@ -421,9 +421,9 @@ GameplayRemotes:WaitForChild("PlayerDataChanged").OnClientEvent:Connect(function
                     
                     if role == "Murderer" then
                         warn("!!! MURDERER DETECTED (Remote): " .. playerName)
-                    elseif role == "Sheriff"
+                    elseif role == "Sheriff" then
                         warn("!!! SHERIFF DETECTED (Remote): " .. playerName)
-                    elseif role == "hero" then
+                    elseif role == "Hero" then
                         warn("!!! HERO DETECTED (Remote): " .. playerName)
                     end
                     
