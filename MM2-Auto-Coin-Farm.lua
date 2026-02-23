@@ -384,18 +384,25 @@ end)
 --- ### 5. REMOTE LISTENERS ### ---
 local GameplayRemotes = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("Gameplay")
 
-GameplayRemotes:WaitForChild("RoleSelect").OnClientEvent:Connect(function(...)
-    local args = {...}
-    
-    for _, arg in pairs(args) do
-        if type(arg) == "table" then
-            playerRoles = arg
-            isActiveRound = true
-            isInLobby = false
-            collectedCoins = {}
-            collectedCount = 0
-            warn("MM2 EARLY ROLE DETECTED:", arg) -- Debug to F9 console
-            break
+-- New Listener for Early Role Detection via PlayerDataChanged
+GameplayRemotes:WaitForChild("PlayerDataChanged").OnClientEvent:Connect(function(arg1)
+    if type(arg1) == "table" then
+        -- Arg1 is the table of data (roles, coins, etc.)
+        -- We'll assume for now it keys player names to role strings or data tables
+        -- But first, let's print it to F9 to be sure
+        warn("MM2 PLAYER DATA CHANGED:", arg1) 
+        
+        -- If this table contains role definitions, we can update our list early
+        -- MM2 often uses this structure: { [PlayerName] = {Role = "Murderer", ...} }
+        -- or just { [PlayerName] = "Murderer" }
+        -- We will attempt to merge distinct role strings found
+        for key, val in pairs(arg1) do
+             -- This is placeholder logic until we see the structure in console
+             if type(val) == "string" and (val == "Murderer" or val == "Sheriff" or val == "Innocent") then
+                 playerRoles[key] = val
+             elseif type(val) == "table" and val.Role then
+                 playerRoles[key] = val.Role
+             end
         end
     end
 end)
