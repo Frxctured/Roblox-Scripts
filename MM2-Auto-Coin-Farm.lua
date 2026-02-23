@@ -28,6 +28,9 @@ getgenv().Config = {
         Innocent = false,
         Gun = false,
     },
+    Other = {
+        AutoGetGun = false,
+    }
 }
 local cfg = getgenv().Config
 
@@ -143,6 +146,12 @@ ESPTab:CreateToggle({
 
 
 -- ## OTHER TAB ## --
+
+OtherTab:CreateToggle({
+    Name = "Auto Get Gun",
+    CurrentValue = false,
+    Callback = function(Value) cfg.Other.AutoGetGun = Value end,
+})
 
 OtherTab:CreateButton({
     Name = "Get Gun",
@@ -545,5 +554,21 @@ task.spawn(function()
             if humanoid then humanoid.PlatformStand = false end
         end
         RunService.Heartbeat:Wait()
+    end
+end)
+
+task.spawn(function()
+    while true do
+        task.wait(0.2)
+        if cfg.Other.AutoGetGun and isActiveRound and character and hrp then
+            local gun = workspace:FindFirstChild("GunDrop", true)
+            if gun and (player.Backpack:FindFirstChild("Knife") == nil and (character:FindFirstChild("Knife") == nil)) then
+                -- Only get gun if not murderer (optional check, but good for safety)
+                local currentCFrame = hrp.CFrame
+                hrp.CFrame = gun.CFrame
+                task.wait(0.1)
+                hrp.CFrame = currentCFrame
+            end
+        end
     end
 end)
