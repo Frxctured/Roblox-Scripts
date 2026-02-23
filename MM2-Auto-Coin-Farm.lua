@@ -130,7 +130,7 @@ ESPTab:CreateToggle({
 })
 
 ESPTab:CreateToggle({
-    Name = "Show Innocents (only as Murderer)",
+    Name = "Show Innocents",
     CurrentValue = false,
     Callback = function(Value) cfg.ESP.Innocent = Value end,
 })
@@ -290,7 +290,7 @@ RunService.Heartbeat:Connect(function()
     end
     
     local function getRole(p)
-        -- if deadPlayers[p.Name] then return "Dead" end -- Ignore dead players
+        if deadPlayers[p.Name] then return "Dead" end -- Ignore dead players
         if playerRoles[p.Name] then
             return playerRoles[p.Name]
         end
@@ -319,7 +319,7 @@ RunService.Heartbeat:Connect(function()
             hl.FillColor = Color3.fromRGB(255, 215, 0)
             hl.FillTransparency = 0.5
             hl.Enabled = true
-        elseif amIMurderer and (pRole == "Innocent" or pRole == "inno") and cfg.ESP.Innocent  then
+        elseif pRole == "Innocent" and cfg.ESP.Innocent  then
             hl.FillColor = Color3.fromRGB(255, 255, 255)
             hl.FillTransparency = 0.8 
             hl.OutlineColor = Color3.fromRGB(255, 255, 255)
@@ -410,10 +410,12 @@ GameplayRemotes:WaitForChild("PlayerDataChanged").OnClientEvent:Connect(function
                     local role = data.Role
                     playerRoles[playerName] = role
                     
-                    if role == "Murderer" or role == "murd" then
+                    if role == "Murderer" then
                         warn("!!! MURDERER DETECTED (Remote): " .. playerName)
-                    elseif role == "Sheriff" or role == "sheriff" or role == "hero" then
+                    elseif role == "Sheriff"
                         warn("!!! SHERIFF DETECTED (Remote): " .. playerName)
+                    elseif role == "hero" then
+                        warn("!!! HERO DETECTED (Remote): " .. playerName)
                     end
                     
                     isActiveRound = true
