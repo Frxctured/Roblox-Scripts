@@ -42,7 +42,7 @@ local hrp = character:WaitForChild("HumanoidRootPart")
 
 local playerRoles = {}
 local collectedCoins = {}
-local isActiveRound = true
+local isActiveRound = false -- Initialize as false, wait for Role Data
 local isInLobby = true
 local collectedCount = 0
 local currentMax = 40 
@@ -287,13 +287,23 @@ RunService.Heartbeat:Connect(function()
     if not isActiveRound then 
         clearHighlights() 
         return 
-    end    -- Dynamic Role Detection (Checks Backpack/Character for weapons)
+    end
+    
+    -- Hybrid Role Detection: Prioritize Remote Data, Fallback to Weapons
     local function getRole(p)
+        -- 1. Check Remote Data (Primary)
+        if playerRoles[p.Name] then
+            return playerRoles[p.Name]
+        end
+
+        -- 2. Fallback: Weapon Check (Secondary)
+        -- Useful if the remote missed someone or for dropped guns picked up by innocents
         if p.Backpack:FindFirstChild("Knife") or (p.Character and p.Character:FindFirstChild("Knife")) then
             return "Murderer"
         elseif p.Backpack:FindFirstChild("Gun") or (p.Character and p.Character:FindFirstChild("Gun")) then
             return "Sheriff"
         end
+        
         return "Innocent" 
     end
 
@@ -399,10 +409,11 @@ GameplayRemotes:WaitForChild("PlayerDataChanged").OnClientEvent:Connect(function
             playerRoles[playerName] = role
             
             -- If we receive role data, the round has effectively "started" for logic purposes
-            if role == "Murderer" or role == "Sheriff" then
-                isActiveRound = true
-                isInLobby = false
-            end
+            -- We set isActiveRound to true so ESP can draw immediately
+            isActiveRound = true
+            
+            -- Optional: If you want farming to wait until actual game start, keep isInLobby = true until RoundStart
+            -- But for ESP, we just need isActiveRound = true
         end
 
         -- Handle Dead/Killed states (optional but good for cleanup)
